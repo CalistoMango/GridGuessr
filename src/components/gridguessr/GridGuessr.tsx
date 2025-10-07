@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useMiniApp } from "@neynar/react";
 
 // High-level orchestration hooks and helpers. Each hook owns the data lifecycle
@@ -50,6 +50,7 @@ export default function GridGuessr() {
   const [view, setView] = useState<ViewState>("home");
   const [leaderboardTab, setLeaderboardTab] = useState<LeaderboardTab>("global");
   const [showModal, setShowModal] = useState<PredictionModalId | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const {
     race,
@@ -101,6 +102,41 @@ export default function GridGuessr() {
 
   const { leaderboard, friendsLeaderboard } = useLeaderboards(fid);
   const { userBadges } = useUserBadges(fid);
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkAdmin = async () => {
+      if (!fid) {
+        if (!cancelled) setIsAdmin(false);
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/admin/auth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fid }),
+        });
+
+        if (cancelled) return;
+
+        if (response.ok) {
+          const data = await response.json();
+          setIsAdmin(Boolean(data?.authenticated));
+        } else {
+          setIsAdmin(false);
+        }
+      } catch {
+        if (!cancelled) setIsAdmin(false);
+      }
+    };
+
+    checkAdmin();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fid]);
 
   const {
     dotdVote,
@@ -264,6 +300,7 @@ export default function GridGuessr() {
         {view === "badges" && (
           <BadgesView
             userBadges={userBadges}
+            isAdmin={isAdmin}
             onBackToPredict={() => setView("predict")}
           />
         )}

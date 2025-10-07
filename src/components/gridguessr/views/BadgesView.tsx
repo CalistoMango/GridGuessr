@@ -36,9 +36,10 @@ const BADGE_DEFINITIONS: BadgeDefinition[] = [
 interface BadgesViewProps {
   userBadges: UserBadges;
   onBackToPredict: () => void;
+  isAdmin?: boolean;
 }
 
-const BadgesView: React.FC<BadgesViewProps> = ({ userBadges, onBackToPredict }) => {
+const BadgesView: React.FC<BadgesViewProps> = ({ userBadges, onBackToPredict, isAdmin = false }) => {
   const earnedCount = useMemo(
     // Count badges once per render - list is small but this avoids repeated work.
     () => (userBadges ? Object.values(userBadges).filter((badge) => badge.earned).length : 0),
@@ -121,6 +122,19 @@ const BadgesView: React.FC<BadgesViewProps> = ({ userBadges, onBackToPredict }) 
           <Share2 className="h-5 w-5" />
         </button>
       </div>
+
+      {isAdmin && (
+        <div className="mt-4 text-right">
+          <a
+            href="/admin"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs font-semibold text-gray-500 transition-colors hover:text-red-400"
+          >
+            Admin Panel
+          </a>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,23 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateAdmin } from '~/lib/auth';
 import { supabaseAdmin } from '~/lib/supabase';
 
-const ADMIN_TOKENS = (process.env.ADMIN_SECRET || process.env.ADMIN_FID_1 || '')
-  .split(',')
-  .map((value) => value.trim())
-  .filter(Boolean);
-
-function isAuthorized(request: NextRequest): boolean {
-  if (!ADMIN_TOKENS.length) return false;
-  const token = request.headers.get('x-admin-token')?.trim();
-  if (token && ADMIN_TOKENS.includes(token)) return true;
+function extractHeaderToken(request: NextRequest): string | null {
+  const headerToken = request.headers.get('x-admin-token')?.trim();
+  if (headerToken) return headerToken;
 
   const bearer = request.headers.get('authorization');
   if (bearer?.startsWith('Bearer ')) {
-    const value = bearer.slice(7).trim();
-    if (value && ADMIN_TOKENS.includes(value)) return true;
+    const token = bearer.slice(7).trim();
+    if (token) return token;
   }
 
-  return false;
+  return null;
+}
+
+function isAuthorized(body: any, request: NextRequest): boolean {
+  const token = extractHeaderToken(request);
+  const authResult = authenticateAdmin({
+    fid: body?.fid,
+    adminFid: body?.adminFid,
+    password: body?.password,
+    adminPassword: body?.adminPassword,
+    token
+  });
+
+  return authResult.authenticated;
 }
 
 function unauthorizedResponse() {
@@ -27,11 +35,10 @@ function unauthorizedResponse() {
 // POST - Submit race results and score all predictions
 export async function POST(request: NextRequest) {
   try {
-    if (!isAuthorized(request)) {
+    const body = await request.json();
+    if (!isAuthorized(body, request)) {
       return unauthorizedResponse();
     }
-
-    const body = await request.json();
     const {
       raceId,
       poleDriverId,

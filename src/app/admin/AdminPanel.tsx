@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { CheckCircle, Trophy, AlertCircle, Plus, Trash2, Calendar } from 'lucide-react';
 
 interface Driver {
@@ -28,7 +28,16 @@ interface Race {
   wildcard_question?: string;
 }
 
-export default function AdminPanel() {
+interface AdminCredential {
+  fid?: number;
+  password?: string;
+}
+
+interface AdminPanelProps {
+  authCredential: AdminCredential | null;
+}
+
+export default function AdminPanel({ authCredential }: AdminPanelProps) {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'results' | 'races'>('races');
   const [races, setRaces] = useState<Race[]>([]);
@@ -37,7 +46,6 @@ export default function AdminPanel() {
   const [selectedRace, setSelectedRace] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [adminFid, setAdminFid] = useState<string>('');
 
   // Results form state
   const [results, setResults] = useState({
@@ -93,10 +101,38 @@ export default function AdminPanel() {
 
   useEffect(() => {
     fetchData();
-    // Try to get admin FID from localStorage
-    const storedFid = localStorage.getItem('gridguessr_admin_fid');
-    if (storedFid) setAdminFid(storedFid);
   }, []);
+
+  const buildAuthPayload = () => {
+    if (!authCredential) return null;
+    if (typeof authCredential.fid === 'number') {
+      return { adminFid: authCredential.fid };
+    }
+    if (authCredential.password) {
+      return { adminPassword: authCredential.password };
+    }
+    return null;
+  };
+
+  const requireAdminCredential = () => {
+    const payload = buildAuthPayload();
+    if (!payload) {
+      setMessage({ type: 'error', text: 'Admin credentials missing. Please re-authenticate.' });
+      return null;
+    }
+    return payload;
+  };
+
+  const authSummary = (() => {
+    if (!authCredential) return 'unauthenticated';
+    if (typeof authCredential.fid === 'number') {
+      return `FID #${authCredential.fid}`;
+    }
+    if (authCredential.password) {
+      return 'admin password';
+    }
+    return 'unknown';
+  })();
 
   const fetchData = async () => {
     try {
@@ -117,33 +153,10 @@ export default function AdminPanel() {
       setLoading(false);
     }
   };
-
-  const adminCode = adminFid.trim();
-
-  const requireAdminCode = () => {
-    if (!adminCode) {
-      setMessage({ type: 'error', text: 'Set your admin code in the Admin Access section first.' });
-      return false;
-    }
-    return true;
-  };
-
-  const handleSaveAdminCode = () => {
-    const trimmed = adminFid.trim();
-    if (!trimmed) {
-      localStorage.removeItem('gridguessr_admin_fid');
-      setMessage({ type: 'success', text: 'Admin code cleared from this device.' });
-      return;
-    }
-
-    localStorage.setItem('gridguessr_admin_fid', trimmed);
-    setAdminFid(trimmed);
-    setMessage({ type: 'success', text: 'Admin code saved locally.' });
-  };
-
   const handleCreateOrUpdateRace = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!requireAdminCode()) return;
+    const authPayload = requireAdminCredential();
+    if (!authPayload) return;
 
     setSubmitting(true);
     setMessage(null);
@@ -152,12 +165,12 @@ export default function AdminPanel() {
       const res = await fetch('/api/admin/races', {
         method: editingRaceId ? 'PUT' : 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'x-admin-token': adminCode
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           ...(editingRaceId ? { raceId: editingRaceId } : {}),
-          ...newRace
+          ...newRace,
+          ...authPayload
         })
       });
 
@@ -182,16 +195,16 @@ export default function AdminPanel() {
       return;
     }
 
-    if (!requireAdminCode()) return;
+    const authPayload = requireAdminCredential();
+    if (!authPayload) return;
 
     try {
       const res = await fetch('/api/admin/races', {
         method: 'DELETE',
         headers: {
-          'Content-Type': 'application/json',
-          'x-admin-token': adminCode
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ raceId })
+        body: JSON.stringify({ raceId, ...authPayload })
       });
 
       if (res.ok) {
@@ -208,7 +221,8 @@ export default function AdminPanel() {
 
   const handleSubmitResults = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!requireAdminCode()) return;
+    const authPayload = requireAdminCredential();
+    if (!authPayload) return;
 
     setSubmitting(true);
     setMessage(null);
@@ -217,12 +231,12 @@ export default function AdminPanel() {
       const res = await fetch('/api/admin/results', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'x-admin-token': adminCode
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           raceId: selectedRace,
-          ...results
+          ...results,
+          ...authPayload
         })
       });
 
@@ -274,27 +288,10 @@ export default function AdminPanel() {
         </div>
 
         <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 mb-6">
-          <h2 className="text-xl font-bold text-white mb-2">Admin Access</h2>
-          <p className="text-sm text-gray-400 mb-4">
-            Set the admin code that matches the value configured on the server. It stays in this browser only.
-          </p>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <input
-              type="text"
-              value={adminFid}
-              onChange={(e) => setAdminFid(e.target.value)}
-              placeholder="Enter admin code"
-              className="flex-1 rounded-lg border border-gray-600 bg-gray-700 p-3 text-white focus:border-red-500 focus:outline-none"
-            />
-            <button
-              onClick={handleSaveAdminCode}
-              className="rounded-lg bg-red-600 px-4 py-3 text-sm font-semibold text-white transition-all hover:bg-red-700"
-            >
-              Save Code
-            </button>
-          </div>
-          <p className="mt-2 text-xs text-gray-500">
-            Tip: clear the field and save to remove the stored code from this device.
+          <h2 className="text-xl font-bold text-white mb-2">Admin Session</h2>
+          <p className="text-sm text-gray-400">
+            Authenticated via <span className="text-white font-semibold">{authSummary}</span>. Refresh or reopen the admin
+            page to authenticate with a different method.
           </p>
         </div>
 

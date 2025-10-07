@@ -1,23 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateAdmin } from '~/lib/auth';
 import { supabaseAdmin } from '~/lib/supabase';
 
-const ADMIN_TOKENS = (process.env.ADMIN_SECRET || process.env.ADMIN_FID_1 || '')
-  .split(',')
-  .map((value) => value.trim())
-  .filter(Boolean);
-
-function isAuthorized(request: NextRequest): boolean {
-  if (!ADMIN_TOKENS.length) return false;
+function extractHeaderToken(request: NextRequest): string | null {
   const headerToken = request.headers.get('x-admin-token')?.trim();
-  if (headerToken && ADMIN_TOKENS.includes(headerToken)) return true;
+  if (headerToken) return headerToken;
 
   const bearer = request.headers.get('authorization');
   if (bearer?.startsWith('Bearer ')) {
     const token = bearer.slice(7).trim();
-    if (token && ADMIN_TOKENS.includes(token)) return true;
+    if (token) return token;
   }
 
-  return false;
+  return null;
+}
+
+function isAuthorized(body: any, request: NextRequest): boolean {
+  const token = extractHeaderToken(request);
+  const authResult = authenticateAdmin({
+    fid: body?.fid,
+    adminFid: body?.adminFid,
+    password: body?.password,
+    adminPassword: body?.adminPassword,
+    token
+  });
+
+  return authResult.authenticated;
 }
 
 function unauthorizedResponse() {
@@ -47,11 +55,11 @@ export async function GET(request: NextRequest) {
 // POST - Create a new race
 export async function POST(request: NextRequest) {
   try {
-    if (!isAuthorized(request)) {
+    const body = await request.json();
+    if (!isAuthorized(body, request)) {
       return unauthorizedResponse();
     }
 
-    const body = await request.json();
     const {
       name,
       circuit,
@@ -105,11 +113,11 @@ export async function POST(request: NextRequest) {
 // DELETE - Delete a race
 export async function DELETE(request: NextRequest) {
   try {
-    if (!isAuthorized(request)) {
+    const body = await request.json();
+    if (!isAuthorized(body, request)) {
       return unauthorizedResponse();
     }
 
-    const body = await request.json();
     const { raceId } = body;
 
     if (!raceId) {
@@ -139,11 +147,11 @@ export async function DELETE(request: NextRequest) {
 // PUT - Update a race
 export async function PUT(request: NextRequest) {
   try {
-    if (!isAuthorized(request)) {
+    const body = await request.json();
+    if (!isAuthorized(body, request)) {
       return unauthorizedResponse();
     }
 
-    const body = await request.json();
     const {
       raceId,
       name,
