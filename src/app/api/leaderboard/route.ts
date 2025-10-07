@@ -316,7 +316,12 @@ export async function GET(request: NextRequest) {
         supabaseProfiles.set(user.fid, user);
       });
 
-      if (!activeFriendFids.length) {
+      // Always include the viewing user so they can see their own rank among friends.
+      const leaderboardFids = Array.from(
+        new Set([fidNumber, ...activeFriendFids.filter((friendFid) => friendFid !== fidNumber)])
+      );
+
+      if (!leaderboardFids.length) {
         return NextResponse.json({ leaderboard: [] });
       }
 
@@ -330,9 +335,9 @@ export async function GET(request: NextRequest) {
         } as ProfileInfo);
       });
 
-      const combined = activeFriendFids.map((friendFid) => {
-        const supa = supabaseProfiles.get(friendFid);
-        const neynarProfile = neynarProfiles.get(friendFid) || neynarProfileMap.get(friendFid);
+      const combined = leaderboardFids.map((entryFid) => {
+        const supa = supabaseProfiles.get(entryFid);
+        const neynarProfile = neynarProfiles.get(entryFid) || neynarProfileMap.get(entryFid);
 
         let profileUsername = '';
         let profileDisplayName = '';
@@ -349,7 +354,7 @@ export async function GET(request: NextRequest) {
         }
 
         return {
-          fid: friendFid,
+          fid: entryFid,
           username: supa?.username ?? profileUsername ?? '',
           display_name: supa?.display_name ?? profileDisplayName ?? '',
           pfp_url: supa?.pfp_url ?? profilePfp ?? '',
