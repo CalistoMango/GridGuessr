@@ -18,40 +18,62 @@ export default function AdminPage() {
   useEffect(() => {
     let cancelled = false;
 
-    const checkFarcasterAuth = async () => {
+    const authenticate = async (payload: AdminCredential): Promise<boolean> => {
       try {
-        const params = new URLSearchParams(window.location.search);
-        const fidParam = params.get('fid');
-        if (!fidParam) {
-          return;
-        }
-
-        const fid = Number.parseInt(fidParam, 10);
-        if (Number.isNaN(fid)) {
-          return;
-        }
-
         const response = await fetch('/api/admin/auth', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fid }),
+          body: JSON.stringify(payload),
         });
 
-        if (!cancelled) {
-          if (response.ok) {
-            const data = await response.json();
-            if (data.authenticated) {
-              setAuthenticated(true);
-              setCredential({ fid });
-              return;
-            }
-          } else {
-            await response.json().catch(() => null);
-          }
+        if (!response.ok) {
+          await response.json().catch(() => null);
+          return false;
         }
+
+        const data = await response.json();
+        if (!data?.authenticated) {
+          return false;
+        }
+
+        if (!cancelled) {
+          setAuthenticated(true);
+          setCredential({
+            ...(typeof payload.fid === 'number' ? { fid: payload.fid } : {}),
+            ...(payload.password ? { password: payload.password } : {}),
+          });
+        }
+
+        return true;
       } catch (err) {
         if (!cancelled) {
-          console.error('FID auth check failed:', err);
+          console.error('Admin auth check failed:', err);
+        }
+        return false;
+      }
+    };
+
+    const resolveAuth = async () => {
+      let success = false;
+
+      try {
+        if (typeof window !== 'undefined') {
+          const sessionValue = sessionStorage.getItem('gridguessr_admin_session');
+          if (sessionValue) {
+            try {
+              const stored = JSON.parse(sessionValue) as AdminCredential | null;
+              if (stored?.fid || stored?.password) {
+                success = await authenticate(stored);
+              }
+              if (!success) {
+                sessionStorage.removeItem('gridguessr_admin_session');
+              }
+            } catch (parseError) {
+              console.error('Failed to read admin session from storage', parseError);
+              sessionStorage.removeItem('gridguessr_admin_session');
+            }
+          }
+
         }
       } finally {
         if (!cancelled) {
@@ -60,7 +82,7 @@ export default function AdminPage() {
       }
     };
 
-    checkFarcasterAuth();
+    resolveAuth();
 
     return () => {
       cancelled = true;

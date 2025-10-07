@@ -137,9 +137,9 @@ interface AdminLinkProps {
   adminFid?: number | null;
 }
 
-// Controls the hidden admin link behaviour: keep the link client-side, append the current admin FID, and prefer the miniapp API.
+// Controls the hidden admin link behaviour: keep the link client-side, persist credentials for the next view, and prefer the miniapp API.
 const AdminLink: React.FC<AdminLinkProps> = ({ adminFid }) => {
-  const adminUrl = adminFid ? `/admin?fid=${adminFid}` : "/admin";
+  const adminUrl = "/admin";
 
   const handleOpen = async (event: React.MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
@@ -150,6 +150,13 @@ const AdminLink: React.FC<AdminLinkProps> = ({ adminFid }) => {
         : adminUrl;
 
     try {
+      if (typeof window !== "undefined" && adminFid) {
+        sessionStorage.setItem(
+          "gridguessr_admin_session",
+          JSON.stringify({ fid: adminFid })
+        );
+      }
+
       const openUrl = sdk.actions.openUrl;
       if (openUrl) {
         await openUrl({ url: absoluteUrl });
@@ -159,7 +166,7 @@ const AdminLink: React.FC<AdminLinkProps> = ({ adminFid }) => {
       console.error("Failed to open admin panel via miniapp action:", error);
     }
 
-    window.open(absoluteUrl, "_blank", "noopener,noreferrer");
+    window.location.href = absoluteUrl;
   };
 
   return (
