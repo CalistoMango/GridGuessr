@@ -37,9 +37,10 @@ interface BadgesViewProps {
   userBadges: UserBadges;
   onBackToPredict: () => void;
   isAdmin?: boolean;
+  adminFid?: number | null;
 }
 
-const BadgesView: React.FC<BadgesViewProps> = ({ userBadges, onBackToPredict, isAdmin = false }) => {
+const BadgesView: React.FC<BadgesViewProps> = ({ userBadges, onBackToPredict, isAdmin = false, adminFid }) => {
   const earnedCount = useMemo(
     // Count badges once per render - list is small but this avoids repeated work.
     () => (userBadges ? Object.values(userBadges).filter((badge) => badge.earned).length : 0),
@@ -124,19 +125,52 @@ const BadgesView: React.FC<BadgesViewProps> = ({ userBadges, onBackToPredict, is
       </div>
 
       {isAdmin && (
-        <div className="mt-4 text-right">
-          <a
-            href="/admin"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs font-semibold text-gray-500 transition-colors hover:text-red-400"
-          >
-            Admin Panel
-          </a>
-        </div>
+        <AdminLink adminFid={adminFid} />
       )}
     </div>
   );
 };
 
 export default BadgesView;
+
+interface AdminLinkProps {
+  adminFid?: number | null;
+}
+
+// Controls the hidden admin link behaviour: keep the link client-side, append the current admin FID, and prefer the miniapp API.
+const AdminLink: React.FC<AdminLinkProps> = ({ adminFid }) => {
+  const adminUrl = adminFid ? `/admin?fid=${adminFid}` : "/admin";
+
+  const handleOpen = async (event: React.MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+
+    const absoluteUrl =
+      typeof window !== "undefined"
+        ? new URL(adminUrl, window.location.origin).toString()
+        : adminUrl;
+
+    try {
+      const openUrl = sdk.actions.openUrl;
+      if (openUrl) {
+        await openUrl({ url: absoluteUrl });
+        return;
+      }
+    } catch (error) {
+      console.error("Failed to open admin panel via miniapp action:", error);
+    }
+
+    window.open(absoluteUrl, "_blank", "noopener,noreferrer");
+  };
+
+  return (
+    <div className="mt-4 text-right">
+      <a
+        href={adminUrl}
+        onClick={handleOpen}
+        className="text-xs font-semibold text-gray-500 transition-colors hover:text-red-400"
+      >
+        Admin Panel
+      </a>
+    </div>
+  );
+};

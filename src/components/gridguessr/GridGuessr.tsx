@@ -102,6 +102,7 @@ export default function GridGuessr() {
 
   const { leaderboard, friendsLeaderboard } = useLeaderboards(fid);
   const { userBadges } = useUserBadges(fid);
+  // On each FID change, re-check admin privileges so we can unlock extra UI affordances (e.g. hidden links).
   useEffect(() => {
     let cancelled = false;
 
@@ -301,6 +302,7 @@ export default function GridGuessr() {
           <BadgesView
             userBadges={userBadges}
             isAdmin={isAdmin}
+            adminFid={typeof fid === "number" ? fid : null}
             onBackToPredict={() => setView("predict")}
           />
         )}
