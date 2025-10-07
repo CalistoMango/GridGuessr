@@ -144,11 +144,6 @@ const AdminLink: React.FC<AdminLinkProps> = ({ adminFid }) => {
   const handleOpen = async (event: React.MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
 
-    const absoluteUrl =
-      typeof window !== "undefined"
-        ? new URL(adminUrl, window.location.origin).toString()
-        : adminUrl;
-
     try {
       if (typeof window !== "undefined" && adminFid) {
         sessionStorage.setItem(
@@ -159,14 +154,16 @@ const AdminLink: React.FC<AdminLinkProps> = ({ adminFid }) => {
 
       const openUrl = sdk.actions.openUrl;
       if (openUrl) {
-        await openUrl({ url: absoluteUrl });
+        await openUrl({ url: adminUrl });
         return;
       }
     } catch (error) {
       console.error("Failed to open admin panel via miniapp action:", error);
     }
 
-    window.location.href = absoluteUrl;
+    if (typeof window !== "undefined") {
+      window.location.href = adminUrl;
+    }
   };
 
   return (
