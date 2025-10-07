@@ -17,6 +17,17 @@ interface ProfileInfo {
   pfp_url?: string;
 }
 
+const FRIENDS_FOLLOW_CACHE = new Map<
+  string,
+  {
+    users: NeynarUser[];
+    expiresAt: number;
+  }
+>();
+const FOLLOW_CACHE_TTL_MS = 60 * 60 * 1000; // 60 minutes cache window
+const FOLLOW_PAGE_LIMIT = 100;
+const FOLLOW_TOTAL_CAP = 300;
+
 function isProfileInfo(value: any): value is ProfileInfo {
   return value && typeof value === 'object' && ('display_name' in value || 'pfp_url' in value || 'username' in value);
 }
@@ -70,27 +81,59 @@ async function fetchFollowingFromNeynar(fid: string): Promise<NeynarUser[]> {
   const apiKey = process.env.NEYNAR_API_KEY;
   if (!apiKey) return [];
 
+  const cached = FRIENDS_FOLLOW_CACHE.get(fid);
+  const now = Date.now();
+  if (cached && cached.expiresAt > now) {
+    return cached.users;
+  }
+
   try {
-    const url = new URL('https://api.neynar.com/v2/farcaster/user/follows');
-    url.searchParams.set('fid', fid);
-    url.searchParams.set('direction', 'following');
-    url.searchParams.set('limit', '1500');
+    const collected: NeynarUser[] = [];
+    let cursor: string | undefined;
 
-    const response = await fetch(url, {
-      headers: {
-        'accept': 'application/json',
-        'api-key': apiKey
+    while (collected.length < FOLLOW_TOTAL_CAP) {
+      const remaining = FOLLOW_TOTAL_CAP - collected.length;
+      const url = new URL('https://api.neynar.com/v2/farcaster/following/');
+      url.searchParams.set('fid', fid);
+      url.searchParams.set('limit', String(Math.min(FOLLOW_PAGE_LIMIT, remaining)));
+      if (cursor) {
+        url.searchParams.set('cursor', cursor);
       }
-    });
 
-    if (!response.ok) {
-      console.error('Failed to fetch Neynar follows', await response.text());
-      return [];
+      const response = await fetch(url, {
+        headers: {
+          accept: 'application/json',
+          'x-api-key': apiKey,
+          'x-neynar-experimental': 'false'
+        }
+      });
+
+      if (!response.ok) {
+        console.error('Failed to fetch Neynar follows', await response.text());
+        break;
+      }
+
+      const data = await response.json();
+      const followEntries: any[] = Array.isArray(data?.users) ? data.users : [];
+      followEntries.forEach((entry) => {
+        const user: NeynarUser | undefined = entry?.user;
+        if (user?.fid) {
+          collected.push(user);
+        }
+      });
+
+      cursor = data?.next?.cursor;
+      if (!cursor || followEntries.length === 0) {
+        break;
+      }
     }
 
-    const data = await response.json();
-    const users: NeynarUser[] = data?.result?.users || data?.users || [];
-    return users;
+    FRIENDS_FOLLOW_CACHE.set(fid, {
+      users: collected,
+      expiresAt: now + FOLLOW_CACHE_TTL_MS
+    });
+
+    return collected;
   } catch (error) {
     console.error('Error fetching Neynar follows:', error);
     return [];
