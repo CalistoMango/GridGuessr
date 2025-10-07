@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '~/lib/supabase';
+import { supabase, supabaseAdmin } from '~/lib/supabase';
 
 interface NeynarUser {
   fid: number;
@@ -17,16 +17,26 @@ interface ProfileInfo {
   pfp_url?: string;
 }
 
-const FRIENDS_FOLLOW_CACHE = new Map<
-  string,
-  {
-    users: NeynarUser[];
-    expiresAt: number;
-  }
->();
+/**
+ * Cached friend FIDs that already have GridGuessr accounts.
+ * Storing just the FIDs keeps the cache payload lightweight.
+ */
+interface CachedFriendFids {
+  friendFids: number[];
+  expiresAt: number;
+}
+
+/**
+ * In-memory cache keyed by the viewer's fid.
+ * We mirror this in Supabase so the cache survives across server restarts.
+ */
+const FRIENDS_FOLLOW_CACHE = new Map<string, CachedFriendFids>();
+
+// --- Neynar follow fetch tuning ---
 const FOLLOW_CACHE_TTL_MS = 60 * 60 * 1000; // 60 minutes cache window
 const FOLLOW_PAGE_LIMIT = 100;
 const FOLLOW_TOTAL_CAP = 300;
+const FOLLOW_CACHE_TABLE = 'friends_follow_cache';
 
 function isProfileInfo(value: any): value is ProfileInfo {
   return value && typeof value === 'object' && ('display_name' in value || 'pfp_url' in value || 'username' in value);
@@ -77,15 +87,13 @@ async function fetchProfilesFromNeynar(fids: number[]): Promise<Map<number, Neyn
   return result;
 }
 
+/**
+ * Paginate through Neynar's following endpoint until we either
+ * exhaust the follow list or hit the configured cap.
+ */
 async function fetchFollowingFromNeynar(fid: string): Promise<NeynarUser[]> {
   const apiKey = process.env.NEYNAR_API_KEY;
   if (!apiKey) return [];
-
-  const cached = FRIENDS_FOLLOW_CACHE.get(fid);
-  const now = Date.now();
-  if (cached && cached.expiresAt > now) {
-    return cached.users;
-  }
 
   try {
     const collected: NeynarUser[] = [];
@@ -128,15 +136,61 @@ async function fetchFollowingFromNeynar(fid: string): Promise<NeynarUser[]> {
       }
     }
 
-    FRIENDS_FOLLOW_CACHE.set(fid, {
-      users: collected,
-      expiresAt: now + FOLLOW_CACHE_TTL_MS
-    });
-
     return collected;
   } catch (error) {
     console.error('Error fetching Neynar follows:', error);
     return [];
+  }
+}
+
+/**
+ * Load the cached friend FIDs for a user from Supabase.
+ * Returns null on cache miss or if the cache has expired.
+ */
+async function loadCachedFriendFids(fid: string): Promise<CachedFriendFids | null> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from(FOLLOW_CACHE_TABLE)
+      .select('friend_fids, expires_at')
+      .eq('fid', fid)
+      .maybeSingle();
+
+    if (error || !data) {
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error reading cached follows:', error);
+      }
+      return null;
+    }
+
+    const expiresAt = data.expires_at ? new Date(data.expires_at).getTime() : 0;
+    const friendFids = Array.isArray(data.friend_fids) ? (data.friend_fids as number[]) : [];
+    return { friendFids, expiresAt };
+  } catch (error) {
+    console.error('Failed to load cached follows:', error);
+    return null;
+  }
+}
+
+/**
+ * Upsert the filtered friend FID list and expiry timestamp into Supabase.
+ */
+async function persistCachedFriendFids(fid: string, friendFids: number[], expiresAt: number) {
+  try {
+    const payload = {
+      fid,
+      friend_fids: friendFids,
+      expires_at: new Date(expiresAt).toISOString()
+    };
+
+    const { error } = await supabaseAdmin
+      .from(FOLLOW_CACHE_TABLE)
+      .upsert(payload, { onConflict: 'fid' });
+
+    if (error) {
+      console.error('Failed to persist cached follows:', error);
+    }
+  } catch (error) {
+    console.error('Unexpected error persisting cached follows:', error);
   }
 }
 
@@ -196,43 +250,77 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ leaderboard: [] });
       }
 
-      // Fetch following list from Neynar when possible
-      const neynarUsers = await fetchFollowingFromNeynar(fid!);
       const neynarProfiles = new Map<number, ProfileInfo>();
-      const friendFids = new Set<number>();
-
-      neynarUsers.forEach((user) => {
-        if (!user?.fid) return;
-        friendFids.add(user.fid);
-        neynarProfiles.set(user.fid, {
-          username: user.username,
-          display_name: user.displayName,
-          pfp_url: user.pfp?.url
-        });
-      });
-
-      // Always include the requesting user
-      friendFids.add(fidNumber);
-
-      const friendFidsArray = Array.from(friendFids);
-
-      if (!friendFidsArray.length) {
-        return NextResponse.json({ leaderboard: [] });
+      const now = Date.now();
+      let cachedFriends: CachedFriendFids | null = FRIENDS_FOLLOW_CACHE.get(fid!) ?? null;
+      if (!cachedFriends || cachedFriends.expiresAt <= now) {
+        const persistent = await loadCachedFriendFids(fid!);
+        if (persistent && persistent.expiresAt > now) {
+          cachedFriends = persistent;
+          FRIENDS_FOLLOW_CACHE.set(fid!, persistent);
+        } else {
+          cachedFriends = null;
+        }
       }
 
-      const { data, error } = await supabase
-        .from('users')
-        .select('fid, username, display_name, pfp_url, total_points, perfect_slates')
-        .in('fid', friendFidsArray);
+      let activeFriendFids: number[] = cachedFriends?.friendFids ?? [];
+      let supabaseData: any[] = [];
 
-      if (error) throw error;
+      if (!cachedFriends) {
+        const neynarUsers = await fetchFollowingFromNeynar(fid!);
+        const followedFids = new Set<number>();
+
+        // Keep supabase lookups lean by only tracking friends with app accounts.
+        neynarUsers.forEach((user) => {
+          if (!user?.fid) return;
+          followedFids.add(user.fid);
+          neynarProfiles.set(user.fid, {
+            username: user.username,
+            display_name: user.displayName,
+            pfp_url: user.pfp?.url
+          });
+        });
+
+        const followedFidsArray = Array.from(followedFids);
+        const queryFids = followedFidsArray.length ? [...followedFidsArray, fidNumber] : [fidNumber];
+
+        const { data, error } = await supabase
+          .from('users')
+          .select('fid, username, display_name, pfp_url, total_points, perfect_slates')
+          .in('fid', queryFids);
+
+        if (error) throw error;
+
+        supabaseData = data || [];
+        activeFriendFids = supabaseData.map((user) => user.fid).filter((friendFid) => friendFid !== fidNumber);
+
+        const expiresAt = now + FOLLOW_CACHE_TTL_MS;
+        const cachePayload: CachedFriendFids = { friendFids: activeFriendFids, expiresAt };
+        FRIENDS_FOLLOW_CACHE.set(fid!, cachePayload);
+        await persistCachedFriendFids(fid!, activeFriendFids, expiresAt);
+      } else {
+        // Cache hit: only fetch the latest scores for the cached set.
+        const queryFids = activeFriendFids.length ? [...activeFriendFids, fidNumber] : [fidNumber];
+        const { data, error } = await supabase
+          .from('users')
+          .select('fid, username, display_name, pfp_url, total_points, perfect_slates')
+          .in('fid', queryFids);
+
+        if (error) throw error;
+
+        supabaseData = data || [];
+      }
 
       const supabaseProfiles = new Map<number, any>();
-      (data || []).forEach((user) => {
+      supabaseData.forEach((user) => {
         supabaseProfiles.set(user.fid, user);
       });
 
-      const neynarProfileMap = await fetchProfilesFromNeynar(friendFidsArray);
+      if (!activeFriendFids.length) {
+        return NextResponse.json({ leaderboard: [] });
+      }
+
+      const neynarProfileMap = await fetchProfilesFromNeynar(activeFriendFids);
       neynarProfileMap.forEach((profile, key) => {
         const existing = neynarProfiles.get(key) || {};
         neynarProfiles.set(key, {
@@ -242,7 +330,7 @@ export async function GET(request: NextRequest) {
         } as ProfileInfo);
       });
 
-      const combined = friendFidsArray.map((friendFid) => {
+      const combined = activeFriendFids.map((friendFid) => {
         const supa = supabaseProfiles.get(friendFid);
         const neynarProfile = neynarProfiles.get(friendFid) || neynarProfileMap.get(friendFid);
 
