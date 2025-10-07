@@ -12,6 +12,7 @@ import { type AccountAssociation } from '@farcaster/miniapp-core/src/manifest';
  */
 
 // --- App Configuration ---
+
 /**
  * The base URL of the application.
  * Used for generating absolute URLs for assets and API endpoints.
@@ -28,7 +29,7 @@ export const APP_NAME: string = 'GridGuessr';
  * A brief description of the mini app's functionality.
  * Used in app store listings and metadata.
  */
-export const APP_DESCRIPTION: string = 'Motorsport prediction game';
+export const APP_DESCRIPTION: string = 'Predict race results and earn badges. Make predictions for pole position, podium finishes, fastest lap, and more. Score points for accuracy and climb the rankings.';
 
 /**
  * The primary category for the mini app.
@@ -40,9 +41,10 @@ export const APP_PRIMARY_CATEGORY: string = 'games';
  * Tags associated with the mini app.
  * Used for search and discovery in app stores.
  */
-export const APP_TAGS: string[] = ['game', 'f1', 'motorsport', 'prediction', 'social'];
+export const APP_TAGS: string[] = ['prediction', 'racing', 'competition', 'leaderboard', 'motorsport'];
 
 // --- Asset URLs ---
+
 /**
  * URL for the app's icon image.
  * Used in app store listings and UI elements.
@@ -76,6 +78,7 @@ export const APP_ACCOUNT_ASSOCIATION: AccountAssociation | undefined =
   undefined;
 
 // --- UI Configuration ---
+
 /**
  * Text displayed on the main action button.
  * Used for the primary call-to-action in the mini app.
@@ -83,6 +86,7 @@ export const APP_ACCOUNT_ASSOCIATION: AccountAssociation | undefined =
 export const APP_BUTTON_TEXT: string = 'Launch GridGuessr';
 
 // --- Integration Configuration ---
+
 /**
  * Webhook URL for receiving events from Neynar.
  *
