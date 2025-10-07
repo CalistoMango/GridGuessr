@@ -1,6 +1,7 @@
 import React from "react";
 import { ThumbsUp, Trophy } from "lucide-react";
 
+import AddMiniAppButton from "~/components/AddMiniAppButton";
 import { DotdData, DotdVoteEntry, LeaderboardEntry, Race } from "../types";
 
 // Landing screen that highlights the next race, voting teaser, and leaderboard
@@ -57,6 +58,8 @@ const HomeView: React.FC<HomeViewProps> = ({
           </button>
         </div>
       </div>
+
+      <AddMiniAppButton />
 
       <div className="grid gap-4 md:grid-cols-2">
         {/* Driver of the Day teaser highlights how voting currently looks */}
