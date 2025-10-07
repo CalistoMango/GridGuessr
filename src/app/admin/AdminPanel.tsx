@@ -348,7 +348,7 @@ export default function AdminPanel({ authCredential }: AdminPanelProps) {
                 {editingRaceId ? 'Update Race' : 'Create New Race'}
               </h2>
               <form onSubmit={handleCreateOrUpdateRace} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <label className="block text-white mb-2">Race Name *</label>
                     <input
@@ -373,7 +373,7 @@ export default function AdminPanel({ authCredential }: AdminPanelProps) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div>
                     <label className="block text-white mb-2">Country</label>
                     <input
@@ -407,7 +407,7 @@ export default function AdminPanel({ authCredential }: AdminPanelProps) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <label className="block text-white mb-2">Race Date & Time *</label>
                     <input
@@ -467,15 +467,18 @@ export default function AdminPanel({ authCredential }: AdminPanelProps) {
               <h2 className="text-xl font-bold text-white mb-4">All Races</h2>
               <div className="space-y-3">
                 {races.map(race => (
-                  <div key={race.id} className="bg-gray-700 rounded-lg p-4 flex items-center justify-between gap-4">
-                    <div>
+                  <div
+                    key={race.id}
+                    className="bg-gray-700 rounded-lg p-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="sm:flex-1">
                       <h3 className="text-white font-bold">{race.name}</h3>
                       <p className="text-gray-400 text-sm">{race.circuit}</p>
                       <p className="text-gray-500 text-xs mt-1">
                         {new Date(race.race_date).toLocaleString()} • Round {race.round} • {race.status}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end w-full sm:w-auto">
                       <button
                         onClick={() => {
                           setEditingRaceId(race.id);
@@ -492,13 +495,13 @@ export default function AdminPanel({ authCredential }: AdminPanelProps) {
                           });
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-semibold w-full sm:w-auto"
                       >
                         Modify
                       </button>
                       <button
                         onClick={() => handleDeleteRace(race.id)}
-                        className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"
+                        className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm font-semibold w-full sm:w-auto"
                         title="Delete race"
                       >
                         <Trash2 className="w-4 h-4 inline mr-1" />
