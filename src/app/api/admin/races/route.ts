@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateAdmin } from '~/lib/auth';
+import { ensureDriverOfDaySummaryJob, ensureLockReminderJobsForRace } from '~/lib/farcaster';
 import { supabaseAdmin } from '~/lib/supabase';
 
 function extractHeaderToken(request: NextRequest): string | null {
@@ -30,6 +31,55 @@ function isAuthorized(body: any, request: NextRequest): boolean {
 
 function unauthorizedResponse() {
   return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+}
+
+interface FarcasterSyncResult {
+  lockReminders: boolean;
+  driverOfDay: boolean;
+  errors: string[];
+}
+
+async function syncFarcasterSchedules(race: any): Promise<FarcasterSyncResult> {
+  const result: FarcasterSyncResult = {
+    lockReminders: false,
+    driverOfDay: false,
+    errors: []
+  };
+
+  if (!race?.id) {
+    return result;
+  }
+
+  if (race.lock_time) {
+    try {
+      await ensureLockReminderJobsForRace({
+        raceId: race.id,
+        lockTime: race.lock_time
+      });
+      result.lockReminders = true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('Failed to ensure lock reminder jobs:', error);
+      result.errors.push(`Lock reminders: ${message}`);
+    }
+  }
+
+  if (race.status === 'completed') {
+    try {
+      await ensureDriverOfDaySummaryJob({
+        raceId: race.id,
+        raceDate: race.race_date ?? null,
+        lockTime: race.lock_time ?? undefined
+      });
+      result.driverOfDay = true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('Failed to ensure Driver of the Day job:', error);
+      result.errors.push(`Driver of the Day: ${message}`);
+    }
+  }
+
+  return result;
 }
 
 // GET - Fetch all races
@@ -97,9 +147,12 @@ export async function POST(request: NextRequest) {
 
     if (error) throw error;
 
+    const farcaster = await syncFarcasterSchedules(race);
+
     return NextResponse.json({
       success: true,
-      race
+      race,
+      farcaster
     });
   } catch (error) {
     console.error('Error creating race:', error);
@@ -188,7 +241,9 @@ export async function PUT(request: NextRequest) {
 
     if (error) throw error;
 
-    return NextResponse.json({ success: true, race: data });
+    const farcaster = await syncFarcasterSchedules(data);
+
+    return NextResponse.json({ success: true, race: data, farcaster });
   } catch (error) {
     console.error('Error updating race:', error);
     return NextResponse.json(
