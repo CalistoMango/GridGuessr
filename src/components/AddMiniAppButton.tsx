@@ -1,56 +1,32 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import sdk from "@farcaster/miniapp-sdk";
+import { useCallback, useState } from "react";
+import { useMiniApp } from "@neynar/react";
 import { PlusCircle } from "lucide-react";
 
 export default function AddMiniAppButton() {
-  const [isInstalled, setIsInstalled] = useState<boolean | null>(null);
+  const { isSDKLoaded, added, actions } = useMiniApp();
   const [isOpeningDialog, setIsOpeningDialog] = useState(false);
 
-  useEffect(() => {
-    let isCancelled = false;
-
-    const bootstrap = async () => {
-      try {
-        const context = await sdk.context;
-        if (!isCancelled) {
-          setIsInstalled(context?.client?.added ?? false);
-        }
-      } catch (error) {
-        console.warn("Unable to determine Farcaster mini app install status:", error);
-        if (!isCancelled) {
-          setIsInstalled(false);
-        }
-      }
-    };
-
-    const handleInstalled = () => setIsInstalled(true);
-    const handleRemoved = () => setIsInstalled(false);
-
-    bootstrap();
-    sdk.on("miniAppAdded", handleInstalled);
-    sdk.on("miniAppRemoved", handleRemoved);
-
-    return () => {
-      isCancelled = true;
-      sdk.off("miniAppAdded", handleInstalled);
-      sdk.off("miniAppRemoved", handleRemoved);
-    };
-  }, []);
-
   const handleAddMiniApp = useCallback(async () => {
+    if (!isSDKLoaded || !actions?.addMiniApp) {
+      return;
+    }
+
     try {
       setIsOpeningDialog(true);
-      await sdk.actions.addMiniApp();
+      const result = await actions.addMiniApp();
+      if (result?.notificationDetails) {
+        console.info("Mini app notification token:", result.notificationDetails.token);
+      }
     } catch (error) {
       console.error("Failed to open Add Mini App dialog:", error);
     } finally {
       setIsOpeningDialog(false);
     }
-  }, []);
+  }, [actions, isSDKLoaded]);
 
-  if (isInstalled !== false) {
+  if (!isSDKLoaded || added) {
     return null;
   }
 

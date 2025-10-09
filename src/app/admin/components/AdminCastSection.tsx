@@ -120,10 +120,6 @@ export function AdminCastSection({
     }
   }, [castJobsLoaded, fetchCastJobs]);
 
-  /**
-   * Post whatever the admin typed in the manual composer. Honors dry-run mode
-   * so you can exercise the full workflow without publishing to Farcaster.
-   */
   const handleSendManualCast = async (event: React.FormEvent) => {
     event.preventDefault();
     const authPayload = getAuthPayload();

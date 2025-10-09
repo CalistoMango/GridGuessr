@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Calendar, CheckCircle, Megaphone, Trophy } from 'lucide-react';
+import { AlertCircle, Bell, Calendar, CheckCircle, Megaphone, Trophy } from 'lucide-react';
 
 import { AdminCastSection } from './components/AdminCastSection';
 import { AdminStatsSection } from './components/AdminStatsSection';
 import { AdminResultsStatsSection } from './components/AdminResultsStatsSection';
 import { AdminRaceSection } from './components/AdminRaceSection';
 import { AdminResultsSection } from './components/AdminResultsSection';
+import { AdminNotificationsSection } from './components/AdminNotificationsSection';
 import type {
   AdminCredential,
   AdminMessage,
@@ -20,7 +21,7 @@ interface AdminPanelProps {
   authCredential: AdminCredential | null;
 }
 
-type AdminTab = 'races' | 'results' | 'casts' | 'stats' | 'resultsStats';
+type AdminTab = 'races' | 'results' | 'casts' | 'notifications' | 'stats' | 'resultsStats';
 
 /**
  * Top-level coordinator for the admin experience.
@@ -121,7 +122,7 @@ export default function AdminPanel({ authCredential }: AdminPanelProps) {
             <Trophy className="w-8 h-8 text-red-500" />
             GridGuessr Admin Panel
           </h1>
-          <p className="text-gray-400">Manage races, results, and Farcaster casts</p>
+          <p className="text-gray-400">Manage races, results, Farcaster casts, and user notifications</p>
         </div>
 
         <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
@@ -132,7 +133,7 @@ export default function AdminPanel({ authCredential }: AdminPanelProps) {
           </p>
         </div>
 
-        <div className="grid gap-2 grid-cols-2 md:grid-cols-4">
+        <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           <button
             onClick={() => setActiveTab('races')}
             className={`py-3 rounded-lg font-semibold transition-all ${
@@ -157,7 +158,7 @@ export default function AdminPanel({ authCredential }: AdminPanelProps) {
           </button>
           <button
             onClick={() => setActiveTab('casts')}
-            className={`py-3 rounded-lg font-semibold transition-all col-span-2 md:col-span-1 ${
+            className={`py-3 rounded-lg font-semibold transition-all ${
               activeTab === 'casts'
                 ? 'bg-red-600 text-white'
                 : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
@@ -167,8 +168,19 @@ export default function AdminPanel({ authCredential }: AdminPanelProps) {
             Farcaster Casts
           </button>
           <button
+            onClick={() => setActiveTab('notifications')}
+            className={`py-3 rounded-lg font-semibold transition-all ${
+              activeTab === 'notifications'
+                ? 'bg-red-600 text-white'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
+          >
+            <Bell className="w-5 h-5 inline mr-2" />
+            Mini App Alerts
+          </button>
+          <button
             onClick={() => setActiveTab('stats')}
-            className={`py-3 rounded-lg font-semibold transition-all col-span-2 md:col-span-1 ${
+            className={`py-3 rounded-lg font-semibold transition-all ${
               activeTab === 'stats'
                 ? 'bg-red-600 text-white'
                 : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
@@ -178,7 +190,7 @@ export default function AdminPanel({ authCredential }: AdminPanelProps) {
           </button>
           <button
             onClick={() => setActiveTab('resultsStats')}
-            className={`py-3 rounded-lg font-semibold transition-all col-span-2 md:col-span-1 ${
+            className={`py-3 rounded-lg font-semibold transition-all ${
               activeTab === 'resultsStats'
                 ? 'bg-red-600 text-white'
                 : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
@@ -226,6 +238,13 @@ export default function AdminPanel({ authCredential }: AdminPanelProps) {
         {activeTab === 'casts' && (
           <AdminCastSection
             races={races}
+            getAuthPayload={getAuthPayload}
+            setMessage={setMessage}
+          />
+        )}
+
+        {activeTab === 'notifications' && (
+          <AdminNotificationsSection
             getAuthPayload={getAuthPayload}
             setMessage={setMessage}
           />

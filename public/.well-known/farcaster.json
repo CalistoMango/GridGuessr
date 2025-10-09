@@ -8,7 +8,7 @@
     "buttonTitle": "Launch GridGuessr",
     "splashImageUrl": "https://gridguessr.vercel.app/splash.png",
     "splashBackgroundColor": "#111827",
-    "webhookUrl": "https://gridguessr.vercel.app/api/webhook",
+    "webhookUrl": "https://api.neynar.com/f/app/76dec965-ca4e-409d-9984-1eb554f88337/event",
     "subtitle": "Motorsport prediction game",
     "description": "Predict race results and earn badges. Make predictions for pole position, podium finishes, fastest lap, and more. Score points for accuracy and climb the rankings.",
     "primaryCategory": "games",
