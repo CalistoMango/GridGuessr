@@ -103,29 +103,29 @@ export async function POST(request: NextRequest) {
     const userDeltas = new Map<string, number>();
 
     const scoringPromises = predictions.map(async (prediction) => {
-      let score = 0;
+      let baseScore = 0;
 
       // Pole Position (15 pts)
       if (prediction.pole_driver_id === poleDriverId) {
-        score += 15;
+        baseScore += 15;
         await awardBadge(prediction.user_id, 'Pole Prophet', raceId);
       }
 
       // Winner (15 pts from 35 podium points)
       if (prediction.winner_driver_id === winnerDriverId) {
-        score += 15;
+        baseScore += 15;
         await awardBadge(prediction.user_id, 'Winner Wizard', raceId);
       }
 
       // 2nd Place (10 pts)
       if (prediction.second_driver_id === secondDriverId) {
-        score += 10;
+        baseScore += 10;
         await awardBadge(prediction.user_id, 'Silver Seer', raceId);
       }
 
       // 3rd Place (10 pts)
       if (prediction.third_driver_id === thirdDriverId) {
-        score += 10;
+        baseScore += 10;
         await awardBadge(prediction.user_id, 'Bronze Brainiac', raceId);
       }
 
@@ -138,48 +138,43 @@ export async function POST(request: NextRequest) {
 
       // Fastest Lap (10 pts)
       if (prediction.fastest_lap_driver_id === fastestLapDriverId) {
-        score += 10;
+        baseScore += 10;
         await awardBadge(prediction.user_id, 'Lap Legend', raceId);
       }
 
       // Fastest Pit Stop (10 pts)
       if (prediction.fastest_pit_team_id === fastestPitTeamId) {
-        score += 10;
+        baseScore += 10;
         await awardBadge(prediction.user_id, 'Pit Psychic', raceId);
       }
 
       // First DNF / No DNF (10 pts)
       if (noDnf && prediction.no_dnf) {
-        score += 10;
+        baseScore += 10;
         await awardBadge(prediction.user_id, 'DNF Detective', raceId);
       } else if (!noDnf && prediction.first_dnf_driver_id === firstDnfDriverId) {
-        score += 10;
+        baseScore += 10;
         await awardBadge(prediction.user_id, 'DNF Detective', raceId);
       }
 
       // Safety Car (10 pts)
       if (prediction.safety_car === safetyCar) {
-        score += 10;
+        baseScore += 10;
         await awardBadge(prediction.user_id, 'Safety Sage', raceId);
       }
 
       // Winning Margin (10 pts)
       if (prediction.winning_margin === winningMargin) {
-        score += 10;
+        baseScore += 10;
         await awardBadge(prediction.user_id, 'Margin Master', raceId);
       }
 
-      // Wildcard (10 pts)
-      if (prediction.wildcard_answer === wildcardResult) {
-        score += 10;
-      }
-
       // Award special badges
-      if (score >= 50) {
+      if (baseScore >= 50) {
         await awardBadge(prediction.user_id, 'Half Century', raceId);
       }
 
-      if (score === 100) {
+      if (baseScore === 100) {
         await awardBadge(prediction.user_id, 'Perfect Slate', raceId);
         // Increment perfect slates count
         const { data: user } = await supabaseAdmin
@@ -196,8 +191,22 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      let bonusScore = 0;
+      const wildcardCorrect = prediction.wildcard_answer === wildcardResult;
+
+      if (wildcardCorrect) {
+        bonusScore = 10;
+        await awardBadge(prediction.user_id, 'Wildcard Wizard', raceId);
+
+        if (baseScore === 100) {
+          await awardBadge(prediction.user_id, 'Grand Prix Master', raceId);
+        }
+      }
+
+      const finalScore = baseScore + bonusScore;
+
       const previousScore = prediction.score ?? 0;
-      const scoreDelta = score - previousScore;
+      const scoreDelta = finalScore - previousScore;
       if (scoreDelta !== 0) {
         userDeltas.set(
           prediction.user_id,
@@ -209,7 +218,7 @@ export async function POST(request: NextRequest) {
       return supabaseAdmin
         .from('predictions')
         .update({
-          score,
+          score: finalScore,
           scored_at: new Date().toISOString()
         })
         .eq('id', prediction.id);

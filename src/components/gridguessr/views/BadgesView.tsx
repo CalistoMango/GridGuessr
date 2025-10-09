@@ -20,6 +20,7 @@ interface BadgeDefinition {
 // Static catalogue that powers the grid. The ids must match backend keys.
 const BADGE_DEFINITIONS: BadgeDefinition[] = [
   { id: "perfectSlate", name: "Perfect Slate", icon: "💯", color: "from-purple-600 to-pink-600", description: "All predictions correct" },
+  { id: "grandPrixMaster", name: "Grand Prix Master", icon: "🏁", color: "from-red-600 to-orange-600", description: "Perfect slate plus wildcard bonus" },
   { id: "podiumProphet", name: "Podium Prophet", icon: "🔮", color: "from-yellow-500 to-orange-500", description: "Exact podium prediction" },
   { id: "halfCentury", name: "Half Century", icon: "🎯", color: "from-green-500 to-emerald-600", description: "Score 50+ points" },
   { id: "pole", name: "Pole Prophet", icon: "⚡", color: "from-blue-500 to-cyan-500", description: "Correct pole position" },
@@ -31,7 +32,10 @@ const BADGE_DEFINITIONS: BadgeDefinition[] = [
   { id: "dnf", name: "DNF Detective", icon: "🔍", color: "from-red-600 to-red-700", description: "Correct first DNF" },
   { id: "safetyCar", name: "Safety Sage", icon: "🚗", color: "from-yellow-500 to-yellow-600", description: "Correct safety car" },
   { id: "margin", name: "Margin Master", icon: "📊", color: "from-green-600 to-teal-600", description: "Correct win margin" },
+  { id: "wildcardWizard", name: "Wildcard Wizard", icon: "🪄", color: "from-pink-500 to-purple-500", description: "Nail the wildcard bonus" },
 ];
+
+const TOTAL_BADGES = BADGE_DEFINITIONS.length;
 
 interface BadgesViewProps {
   userBadges: UserBadges;
@@ -51,7 +55,7 @@ const BadgesView: React.FC<BadgesViewProps> = ({ userBadges, onBackToPredict, is
     // Share a simple progress update anchored to the earned badge count.
     try {
       await sdk.actions.composeCast?.({
-        text: `Progress check 🏅\n${earnedCount}/12 badges earned on ${APP_NAME}! Keep racing, keep winning 🏁\n\nHow many can you collect? 👇`,
+        text: `Progress check 🏅\n${earnedCount}/${TOTAL_BADGES} badges earned on ${APP_NAME}! Keep racing, keep winning 🏁\n\nHow many can you collect? 👇`,
         embeds: [`${APP_URL}`],
       });
     } catch (error) {
@@ -99,12 +103,12 @@ const BadgesView: React.FC<BadgesViewProps> = ({ userBadges, onBackToPredict, is
       <div className="mb-5 rounded-xl border border-gray-700 bg-gray-800 p-5">
         <div className="mb-3 flex items-center justify-between">
           <h3 className="font-bold text-white">Badge Progress</h3>
-          <span className="font-bold text-red-400">{earnedCount}/12</span>
+          <span className="font-bold text-red-400">{earnedCount}/{TOTAL_BADGES}</span>
         </div>
         <div className="h-2 w-full rounded-full bg-gray-700">
           <div
             className="h-2 rounded-full bg-gradient-to-r from-red-500 to-red-600 transition-all"
-            style={{ width: `${(earnedCount / 12) * 100}%` }}
+            style={{ width: `${(earnedCount / TOTAL_BADGES) * 100}%` }}
           />
         </div>
       </div>

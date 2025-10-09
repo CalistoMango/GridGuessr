@@ -12,11 +12,21 @@ import {
   type CastTemplate,
   type CreateCastJobInput,
   type DriverOfDayArgs,
-  type LockReminderArgs
+  type LockReminderArgs,
+  type PredictionConsensusArgs,
+  type RaceResultsSummaryArgs,
+  type PerfectSlateArgs,
+  type CloseCallsArgs,
+  type LeaderboardUpdateArgs
 } from './types';
 import {
   buildDriverOfDayCast,
-  buildLockReminderCast
+  buildLockReminderCast,
+  buildPredictionConsensusCast,
+  buildRaceResultsSummaryCast,
+  buildPerfectSlateCast,
+  buildCloseCallsCast,
+  buildLeaderboardUpdateCast
 } from './templates';
 
 type SupabaseRow = {
@@ -331,6 +341,39 @@ function coerceDriverOfDayArgs(args: Record<string, unknown>, channelId?: string
   };
 }
 
+function coercePredictionConsensusArgs(args: Record<string, unknown>, channelId?: string | null): PredictionConsensusArgs {
+  const raceId = typeof args.raceId === 'string' ? args.raceId : String(args.raceId);
+  const category = args.category === 'pole' || args.category === 'winner' ? args.category : null;
+
+  if (!raceId || !category) {
+    throw new Error('Invalid prediction consensus payload arguments.');
+  }
+
+  return {
+    raceId,
+    category,
+    channelId: (typeof args.channelId === 'string' ? args.channelId : channelId) ?? null
+  };
+}
+
+function coerceRaceOnlyArgs<T extends { raceId: string; channelId?: string | null }>(
+  args: Record<string, unknown>,
+  channelId: string | null,
+  template: string
+): T {
+  const raceIdRaw = typeof args.raceId === 'string' ? args.raceId : args.raceId != null ? String(args.raceId) : '';
+  const raceId = raceIdRaw.trim();
+
+  if (!raceId) {
+    throw new Error(`Invalid ${template} payload arguments.`);
+  }
+
+  return {
+    raceId,
+    channelId: (typeof args.channelId === 'string' ? args.channelId : channelId) ?? null
+  } as T;
+}
+
 export async function dispatchCastJob(job: CastJobRecord): Promise<CastDispatchResult> {
   try {
     let payload;
@@ -356,6 +399,33 @@ export async function dispatchCastJob(job: CastJobRecord): Promise<CastDispatchR
         }
 
         payload = dotdPayload;
+        break;
+      }
+      case 'prediction-consensus': {
+        const args = coercePredictionConsensusArgs(job.payloadArgs, job.channelId);
+        payload = await buildPredictionConsensusCast(args);
+        break;
+      }
+      case 'race-results-summary': {
+        const args = coerceRaceOnlyArgs<RaceResultsSummaryArgs>(job.payloadArgs, job.channelId ?? null, 'race results summary');
+        payload = await buildRaceResultsSummaryCast(args);
+        break;
+      }
+      case 'perfect-slate-alert': {
+        const args = coerceRaceOnlyArgs<PerfectSlateArgs>(job.payloadArgs, job.channelId ?? null, 'perfect slate alert');
+        const result = await buildPerfectSlateCast(args);
+        payload = result.payload;
+        break;
+      }
+      case 'close-calls': {
+        const args = coerceRaceOnlyArgs<CloseCallsArgs>(job.payloadArgs, job.channelId ?? null, 'close calls');
+        const result = await buildCloseCallsCast(args);
+        payload = result.payload;
+        break;
+      }
+      case 'leaderboard-update': {
+        const args = coerceRaceOnlyArgs<LeaderboardUpdateArgs>(job.payloadArgs, job.channelId ?? null, 'leaderboard update');
+        payload = await buildLeaderboardUpdateCast(args);
         break;
       }
       case 'custom':

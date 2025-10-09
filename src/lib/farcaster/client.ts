@@ -15,6 +15,18 @@ export interface PostCastResponse {
   raw: Record<string, unknown>;
 }
 
+export interface DeleteCastOptions {
+  targetHash: string;
+  signerUuid?: string;
+  dryRun?: boolean;
+}
+
+export interface DeleteCastResponse {
+  success: boolean;
+  message?: string;
+  raw: Record<string, unknown>;
+}
+
 function getEnv(name: string): string | undefined {
   const value = process.env[name];
   if (typeof value === 'string' && value.trim().length > 0) {
@@ -134,6 +146,60 @@ export async function postCast(
   return {
     hash: typeof raw?.hash === 'string' ? raw.hash : undefined,
     url: typeof raw?.cast_url === 'string' ? raw.cast_url : undefined,
+    raw
+  };
+}
+
+/**
+ * Delete an existing cast hash using the Neynar API. Honors dry-run mode so
+ * admins can verify hashes without actually removing posts.
+ */
+export async function deleteCast(options: DeleteCastOptions): Promise<DeleteCastResponse> {
+  const hash = options?.targetHash?.trim();
+  if (!hash) {
+    throw new Error('Cast hash is required to delete a cast.');
+  }
+
+  const dryRun = shouldDryRun(options?.dryRun);
+  const signerUuid = resolveSignerUuid(options?.signerUuid);
+
+  if (dryRun) {
+    return {
+      success: true,
+      message: 'Dry run – cast deletion skipped.',
+      raw: {
+        dryRun: true,
+        target_hash: hash,
+        signer_uuid: signerUuid
+      }
+    };
+  }
+
+  const apiKey = resolveApiKey();
+  const endpoint = `${NEYNAR_BASE_URL}/cast/`;
+
+  const response = await fetch(endpoint, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey
+    },
+    body: JSON.stringify({
+      target_hash: hash,
+      signer_uuid: signerUuid
+    })
+  });
+
+  const raw = (await response.json()) as Record<string, unknown>;
+
+  if (!response.ok) {
+    const message = typeof raw?.message === 'string' ? raw.message : JSON.stringify(raw);
+    throw new Error(`Failed to delete cast (${response.status}): ${message}`);
+  }
+
+  return {
+    success: raw?.success === true,
+    message: typeof raw?.message === 'string' ? raw.message : undefined,
     raw
   };
 }

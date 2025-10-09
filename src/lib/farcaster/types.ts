@@ -1,6 +1,11 @@
 export type CastTemplate =
   | 'race-lock-reminder'
   | 'driver-of-day-summary'
+  | 'prediction-consensus'
+  | 'race-results-summary'
+  | 'perfect-slate-alert'
+  | 'close-calls'
+  | 'leaderboard-update'
   | 'custom';
 
 export interface CastEmbed {
@@ -58,5 +63,31 @@ export interface LockReminderArgs {
 export interface DriverOfDayArgs {
   raceId: string;
   publishAt?: string;
+  channelId?: string | null;
+}
+
+export interface PredictionConsensusArgs {
+  raceId: string;
+  category: 'pole' | 'winner';
+  channelId?: string | null;
+}
+
+export interface RaceResultsSummaryArgs {
+  raceId: string;
+  channelId?: string | null;
+}
+
+export interface PerfectSlateArgs {
+  raceId: string;
+  channelId?: string | null;
+}
+
+export interface CloseCallsArgs {
+  raceId: string;
+  channelId?: string | null;
+}
+
+export interface LeaderboardUpdateArgs {
+  raceId: string;
   channelId?: string | null;
 }

@@ -18,8 +18,8 @@ export const FARCASTER_MAX_ATTEMPTS = 5;
 // Default reminder windows before race lock expressed in minutes (24h, 1h).
 export const LOCK_REMINDER_OFFSETS_MINUTES = [1440, 60];
 
-// The fallback delay for Driver of the Day recaps (4 days post-race).
-export const DEFAULT_DRIVER_OF_DAY_OFFSET_HOURS = 96; // 4 days after race date
+// The fallback delay for Driver of the Day recaps (2 days post-race).
+export const DEFAULT_DRIVER_OF_DAY_OFFSET_HOURS = 48; // 2 days after race date
 
 // Hard cap on Farcaster cast text length enforced by Neynar.
 export const CAST_TEXT_MAX_LENGTH = 320;

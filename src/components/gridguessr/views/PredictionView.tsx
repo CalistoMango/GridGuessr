@@ -293,7 +293,7 @@ const PredictionView: React.FC<PredictionViewProps> = ({
             <div className="rounded-xl border border-gray-700 bg-gray-800 p-4">
               <div className="mb-2 flex items-center gap-2">
                 <Target className="h-5 w-5 text-pink-400" />
-                <span className="font-bold text-white">Wildcard</span>
+                <span className="font-bold text-white">Wildcard (bonus)</span>
                 <span className="rounded bg-gray-700 px-2 py-1 text-xs text-gray-400">10 pts</span>
               </div>
               <p className="mb-3 text-sm text-gray-300">{race.wildcard_question}</p>
