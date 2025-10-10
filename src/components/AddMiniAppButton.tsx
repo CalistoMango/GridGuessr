@@ -1,32 +1,56 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { useMiniApp } from "@neynar/react";
+import { useCallback, useEffect, useState } from "react";
+import sdk from "@farcaster/miniapp-sdk";
 import { PlusCircle } from "lucide-react";
 
 export default function AddMiniAppButton() {
-  const { isSDKLoaded, added, actions } = useMiniApp();
+  const [isInstalled, setIsInstalled] = useState<boolean | null>(null);
   const [isOpeningDialog, setIsOpeningDialog] = useState(false);
 
-  const handleAddMiniApp = useCallback(async () => {
-    if (!isSDKLoaded || !actions?.addMiniApp) {
-      return;
-    }
+  useEffect(() => {
+    let isCancelled = false;
 
+    const bootstrap = async () => {
+      try {
+        const context = await sdk.context;
+        if (!isCancelled) {
+          setIsInstalled(context?.client?.added ?? false);
+        }
+      } catch (error) {
+        console.warn("Unable to determine Farcaster mini app install status:", error);
+        if (!isCancelled) {
+          setIsInstalled(false);
+        }
+      }
+    };
+
+    const handleInstalled = () => setIsInstalled(true);
+    const handleRemoved = () => setIsInstalled(false);
+
+    bootstrap();
+    sdk.on("miniAppAdded", handleInstalled);
+    sdk.on("miniAppRemoved", handleRemoved);
+
+    return () => {
+      isCancelled = true;
+      sdk.off("miniAppAdded", handleInstalled);
+      sdk.off("miniAppRemoved", handleRemoved);
+    };
+  }, []);
+
+  const handleAddMiniApp = useCallback(async () => {
     try {
       setIsOpeningDialog(true);
-      const result = await actions.addMiniApp();
-      if (result?.notificationDetails) {
-        console.info("Mini app notification token:", result.notificationDetails.token);
-      }
+      await sdk.actions.addMiniApp();
     } catch (error) {
       console.error("Failed to open Add Mini App dialog:", error);
     } finally {
       setIsOpeningDialog(false);
     }
-  }, [actions, isSDKLoaded]);
+  }, []);
 
-  if (!isSDKLoaded || added) {
+  if (isInstalled !== false) {
     return null;
   }
 
