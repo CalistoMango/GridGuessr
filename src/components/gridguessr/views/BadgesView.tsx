@@ -143,7 +143,7 @@ interface AdminLinkProps {
 
 // Controls the hidden admin link behaviour: keep the link client-side, persist credentials for the next view, and prefer the miniapp API.
 const AdminLink: React.FC<AdminLinkProps> = ({ adminFid }) => {
-  const adminUrl = "/admin";
+  const adminUrl = `${APP_URL}/admin`;
 
   const handleOpen = async (event: React.MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
