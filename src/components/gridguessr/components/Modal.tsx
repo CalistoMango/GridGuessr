@@ -13,11 +13,11 @@ interface ModalProps {
 const Modal: React.FC<ModalProps> = ({ title, onClose, children }) => {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-3 pb-4 pt-20 sm:items-center sm:p-8"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 px-3 py-6 sm:items-center sm:p-8"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-t-2xl border border-gray-700 bg-gray-900 shadow-2xl sm:max-w-2xl sm:rounded-2xl"
+        className="w-full max-w-md rounded-2xl border border-gray-700 bg-gray-900 shadow-2xl sm:max-w-2xl"
         // Stop bubbling so clicks inside the modal body do not close the sheet.
         onClick={(event) => event.stopPropagation()}
       >
