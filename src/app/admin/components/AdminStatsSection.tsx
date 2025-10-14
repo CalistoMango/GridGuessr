@@ -25,6 +25,7 @@ export function AdminStatsSection() {
   const [predictions, setPredictions] = useState<PredictionsStats | null>(null);
   const [dotdRace, setDotdRace] = useState<any | null>(null);
   const [dotd, setDotd] = useState<{ total: number; options: StatEntry[] } | null>(null);
+  const [totalUsers, setTotalUsers] = useState<number | null>(null);
 
   useEffect(() => {
     const run = async () => {
@@ -39,6 +40,7 @@ export function AdminStatsSection() {
         setPredictions(data.predictions || null);
         setDotdRace(data.dotdRace || null);
         setDotd(data.dotd || null);
+        setTotalUsers(typeof data.totalUsers === 'number' ? data.totalUsers : null);
       } catch (e) {
         setError('Network error while loading stats');
       } finally {
@@ -85,7 +87,7 @@ export function AdminStatsSection() {
         {predictionRace ? (
           <p className="text-gray-400 text-sm mb-4">
             Race: <span className="text-white font-semibold">{predictionRace.name}</span> · Lock {formatLocalDateTime(predictionRace.lock_time)} ·
-            Total predictions: <span className="text-white font-semibold">{predictions?.total ?? 0}</span>
+            Total predictions: <span className="text-white font-semibold">{predictions?.total ?? 0}</span> out of <span className="text-white font-semibold">{totalUsers ?? '—'}</span> users.
           </p>
         ) : (
           <p className="text-gray-400 text-sm mb-4">No upcoming race with open predictions</p>
@@ -125,4 +127,3 @@ export function AdminStatsSection() {
     </div>
   );
 }
-

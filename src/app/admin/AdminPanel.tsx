@@ -245,6 +245,7 @@ export default function AdminPanel({ authCredential }: AdminPanelProps) {
 
         {activeTab === 'notifications' && (
           <AdminNotificationsSection
+            races={races}
             getAuthPayload={getAuthPayload}
             setMessage={setMessage}
           />

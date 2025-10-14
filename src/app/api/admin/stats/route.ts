@@ -219,15 +219,19 @@ export async function GET() {
       (predictions as any).wildcard = Array.from(wildcard.entries()).map(([value, count]) => ({ value, count, percentage: percentage(count, total) }));
     }
 
+    const { count: totalUsers } = await supabaseAdmin
+      .from('users')
+      .select('id', { count: 'exact', head: true });
+
     return NextResponse.json({
       predictionRace: predictionRace || null,
       predictions,
       dotdRace: dotdRace || null,
-      dotd
+      dotd,
+      totalUsers: typeof totalUsers === 'number' ? totalUsers : null
     });
   } catch (error) {
     console.error('Admin stats error:', error);
     return NextResponse.json({ error: 'Failed to fetch stats' }, { status: 500 });
   }
 }
-
