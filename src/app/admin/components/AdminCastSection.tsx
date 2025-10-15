@@ -5,6 +5,7 @@ import { Loader2, RefreshCcw, Send, Trophy, Trash2 } from 'lucide-react';
 
 import type { AdminMessage, CastJob, Race } from '../types';
 import { formatLocalDate, formatLocalDateTime } from '../utils';
+import { CAST_TEXT_MAX_LENGTH } from '~/lib/farcaster/constants';
 
 type AdminCastSectionProps = {
   races: Race[];
@@ -395,12 +396,12 @@ export function AdminCastSection({
               value={castForm.text}
               onChange={(event) => setCastForm((previous) => ({ ...previous, text: event.target.value }))}
               className="w-full bg-gray-700 text-white rounded-lg p-3 border border-gray-600 min-h-[120px]"
-              maxLength={320}
+              maxLength={CAST_TEXT_MAX_LENGTH}
               placeholder="What would you like to cast?"
               required
             />
             <p className="text-xs text-gray-500 mt-1">
-              {castForm.text.length}/320 characters
+              {castForm.text.length}/{CAST_TEXT_MAX_LENGTH} characters
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
