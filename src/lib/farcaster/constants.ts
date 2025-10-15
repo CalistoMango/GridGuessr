@@ -22,4 +22,4 @@ export const LOCK_REMINDER_OFFSETS_MINUTES = [1440, 60];
 export const DEFAULT_DRIVER_OF_DAY_OFFSET_HOURS = 48; // 2 days after race date
 
 // Hard cap on Farcaster cast text length enforced by Neynar.
-export const CAST_TEXT_MAX_LENGTH = 320;
+export const CAST_TEXT_MAX_LENGTH = 600;
