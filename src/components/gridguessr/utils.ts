@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import { Predictions, Race } from "./types";
+import { BonusEventStatus, Predictions, Race } from "./types";
 
 // Small shared helpers that are reused by hooks and view components.
 // Keep business logic (lock timing, prediction defaults, etc.) in one place so
@@ -127,4 +127,51 @@ export function calculateCompletion(predictions: Predictions) {
   if (predictions.wildcard !== null) completed++;
 
   return { completed, total, percentage: Math.round((completed / total) * 100) };
+}
+
+export function computeBonusLockText(locksAt: string, status: BonusEventStatus): { text: string; isLocked: boolean } {
+  const lockDate = locksAt ? new Date(locksAt) : null;
+  const now = new Date();
+
+  if (!lockDate || Number.isNaN(lockDate.getTime())) {
+    const locked = status === "locked" || status === "scored" || status === "archived";
+    return {
+      text: locked ? "Bonus locked" : "Lock time TBD",
+      isLocked: locked,
+    };
+  }
+
+  if (lockDate <= now || status === "locked" || status === "scored" || status === "archived") {
+    return { text: "Bonus locked", isLocked: true };
+  }
+
+  const diffMs = lockDate.getTime() - now.getTime();
+  const totalMinutes = Math.round(diffMs / (1000 * 60));
+  const totalHours = Math.floor(totalMinutes / 60);
+  const parts: string[] = [];
+  if (totalHours >= 24) {
+    const days = Math.floor(totalHours / 24);
+    const hours = totalHours % 24;
+    const minutes = totalMinutes % 60;
+    parts.push(`${days}d`);
+    if (hours > 0) {
+      parts.push(`${hours}h`);
+    }
+    if (minutes > 0) {
+      parts.push(`${minutes}m`);
+    }
+  } else {
+    if (totalHours > 0) {
+      parts.push(`${totalHours}h`);
+    }
+    const minutes = Math.max(totalMinutes % 60, 0);
+    if (minutes > 0 || parts.length === 0) {
+      parts.push(`${minutes}m`);
+    }
+  }
+
+  return {
+    text: `Locks in ${parts.join(" ")}`,
+    isLocked: false,
+  };
 }

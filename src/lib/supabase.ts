@@ -20,6 +20,7 @@ export interface User {
   display_name?: string;
   pfp_url?: string;
   total_points: number;
+  bonus_points?: number | null;
   perfect_slates: number;
   created_at: string;
   updated_at: string;
@@ -103,6 +104,81 @@ export interface DotdVote {
   user_id: string;
   driver_id: string;
   created_at: string;
+}
+
+export type BonusPredictionEventType = 'sprint' | 'open' | 'winter';
+
+export type BonusPredictionEventStatus =
+  | 'draft'
+  | 'scheduled'
+  | 'open'
+  | 'locked'
+  | 'scored'
+  | 'archived';
+
+export type BonusPredictionResponseType =
+  | 'choice_driver'
+  | 'choice_team'
+  | 'choice_custom';
+
+export interface BonusPredictionEvent {
+  id: string;
+  type: BonusPredictionEventType;
+  status: BonusPredictionEventStatus;
+  title: string;
+  description?: string | null;
+  race_id?: string | null;
+  opens_at: string;
+  locks_at: string;
+  published_at?: string | null;
+  points_multiplier: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BonusPredictionQuestion {
+  id: string;
+  event_id: string;
+  prompt: string;
+  response_type: BonusPredictionResponseType;
+  max_selections: number;
+  points: number;
+  order_index: number;
+  correct_option_ids?: string[] | null;
+  correct_free_text?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BonusPredictionOption {
+  id: string;
+  question_id: string;
+  label: string;
+  driver_id?: string | null;
+  team_id?: string | null;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BonusPredictionResponse {
+  id: string;
+  event_id: string;
+  question_id: string;
+  user_id: string;
+  selected_option_ids: string[] | null;
+  free_text_answer?: string | null;
+  submitted_at: string;
+  updated_at: string;
+  points_awarded?: number | null;
+  scored_at?: string | null;
+}
+
+export interface BonusPredictionUserSummary {
+  user_id: string;
+  event_id: string;
+  total_points: number;
+  scored_at?: string | null;
 }
 
 // Helper functions

@@ -70,7 +70,59 @@ export interface DotdData {
   } | null;
 }
 
-export type ViewState = "home" | "predict" | "leaderboard" | "dotd" | "badges" | "submitted";
+export type BonusEventType = "sprint" | "open" | "winter";
+
+export type BonusResponseType = "choice_driver" | "choice_team" | "choice_custom";
+
+export type BonusEventStatus = "draft" | "scheduled" | "open" | "locked" | "scored" | "archived";
+
+export interface BonusPredictionOption {
+  id: string;
+  label: string;
+  order: number;
+  driverId?: string | null;
+  teamId?: string | null;
+}
+
+export interface BonusPredictionQuestion {
+  id: string;
+  prompt: string;
+  responseType: BonusResponseType;
+  maxSelections: number;
+  points: number;
+  order: number;
+  options: BonusPredictionOption[];
+  correctOptionIds?: string[] | null;
+}
+
+export interface BonusPredictionEvent {
+  id: string;
+  type: BonusEventType;
+  status: BonusEventStatus;
+  title: string;
+  description?: string | null;
+  opensAt: string;
+  locksAt: string;
+  publishedAt?: string | null;
+  pointsMultiplier: number;
+  raceId?: string | null;
+  questions: BonusPredictionQuestion[];
+  totalPointsAwarded?: number;
+}
+
+export interface BonusPredictionUserState {
+  responses: Record<
+    string,
+    {
+      selectedOptionIds: string[] | null;
+      pointsAwarded?: number | null;
+    }
+  >;
+  totalPoints?: number;
+  scoredAt?: string | null;
+}
+
+export type ViewState = "home" | "predict" | "leaderboard" | "dotd" | "badges" | "submitted" | "bonus";
 
 export type LeaderboardTab = "global" | "friends";
 

@@ -9,10 +9,11 @@ import { useMiniApp } from "@neynar/react";
 
 import { useLeaderboards } from "./hooks/useLeaderboards";
 import { useDriverOfTheDay } from "./hooks/useDriverOfTheDay";
+import { useBonusPredictions } from "./hooks/useBonusPredictions";
 import { usePredictionsState } from "./hooks/usePredictionsState";
 import { useRaceSummary } from "./hooks/useRaceSummary";
 import { useUserBadges } from "./hooks/useUserBadges";
-import { computeLockMetadata, useMarginBuckets } from "./utils";
+import { computeBonusLockText, computeLockMetadata, useMarginBuckets } from "./utils";
 import {
   LeaderboardEntry,
   LeaderboardTab,
@@ -28,11 +29,14 @@ import SubmittedView from "./views/SubmittedView";
 import LeaderboardView from "./views/LeaderboardView";
 import DriverOfTheDayView from "./views/DriverOfTheDayView";
 import BadgesView from "./views/BadgesView";
+import BonusPredictionsView from "./views/BonusPredictionsView";
 import PredictionModals from "./components/PredictionModals";
+import BonusOptionsModal from "./components/BonusOptionsModal";
 
 export default function GridGuessr() {
   const { context: frameContext } = useMiniApp();
-  const fid = frameContext?.user?.fid ?? null;
+  const frameFid = frameContext?.user?.fid ?? null;
+  const [fid, setFid] = useState<number | string | null>(frameFid ?? null);
   const frameUser = (frameContext?.user as Record<string, any>) ?? null;
   // Normalize the Farcaster user object so we can pass a consistent profile shape
   // into hooks regardless of which fields happen to be present.
@@ -45,12 +49,81 @@ export default function GridGuessr() {
     [frameUser?.displayName, frameUser?.name, frameUser?.pfp?.url, frameUser?.pfpUrl, frameUser?.username]
   );
 
+  useEffect(() => {
+    const normalizeFid = (candidate: string | number | null | undefined): number | string | null => {
+      if (candidate === null || candidate === undefined) return null;
+      if (typeof candidate === "number" && Number.isInteger(candidate)) return candidate;
+      if (typeof candidate === "string") {
+        const trimmed = candidate.trim();
+        if (!trimmed) return null;
+        const parsed = Number(trimmed);
+        if (!Number.isNaN(parsed) && Number.isInteger(parsed)) {
+          return parsed;
+        }
+        return trimmed;
+      }
+      return null;
+    };
+
+    const trySetFid = (candidate: number | string | null) => {
+      if (candidate === null || candidate === undefined) return false;
+      setFid((current) => (current === candidate ? current : candidate));
+      if (typeof window !== "undefined" && candidate !== null) {
+        window.localStorage.setItem("gridguessr_dev_fid", String(candidate));
+      }
+      return true;
+    };
+
+    if (frameFid !== null && frameFid !== undefined) {
+      const resolved = Number.isNaN(Number(frameFid))
+        ? frameFid
+        : Number(frameFid);
+      trySetFid(resolved);
+      return;
+    }
+
+    const candidates: Array<string | number | null> = [];
+
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      candidates.push(params.get("devFid"));
+      candidates.push(params.get("fid"));
+      candidates.push(window.localStorage.getItem("gridguessr_dev_fid"));
+    }
+
+    candidates.push(process.env.NEXT_PUBLIC_DEV_FID ?? null);
+
+    const adminEnv =
+      process.env.NEXT_PUBLIC_ADMIN_FIDS ??
+      process.env.ADMIN_FIDS ??
+      "";
+
+    adminEnv
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+      .forEach((entry) => candidates.push(entry));
+
+    candidates.push("1"); // absolute fallback – make choosing a fid deterministic locally
+
+    for (const candidate of candidates) {
+      const resolved = normalizeFid(candidate);
+      if (trySetFid(resolved)) {
+        return;
+      }
+    }
+
+    setFid(null);
+  }, [frameFid]);
+
   // Buckets shown in the winning margin modal (memoised helper).
   const marginBuckets = useMarginBuckets();
   const [view, setView] = useState<ViewState>("home");
   const [leaderboardTab, setLeaderboardTab] = useState<LeaderboardTab>("global");
   const [showModal, setShowModal] = useState<PredictionModalId | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [activeBonusQuestionId, setActiveBonusQuestionId] = useState<string | null>(null);
+  const [bonusSubmitError, setBonusSubmitError] = useState<string | null>(null);
 
   const {
     race,
@@ -88,6 +161,19 @@ export default function GridGuessr() {
     onSubmitSuccess: () => setView("submitted"),
   });
 
+  const {
+    activeEvent: activeBonusEvent,
+    responses: bonusResponses,
+    loading: bonusLoading,
+    submittingEventId: bonusSubmittingEventId,
+    updateSelection: updateBonusSelection,
+    submitEvent: submitBonusEvent,
+    getCompletion: getBonusCompletion,
+  } = useBonusPredictions({
+    fid,
+    frameProfile,
+  });
+
   // Modal callbacks close the modal after pushing the selected value down
   // into the shared predictions hook.
   const handleSetPrediction: PredictionSetter = (prop, value) => {
@@ -99,6 +185,57 @@ export default function GridGuessr() {
     updatePodium(position, driver);
     setShowModal(null);
   };
+
+  const activeBonusState = activeBonusEvent ? bonusResponses[activeBonusEvent.id] : undefined;
+  const bonusCompletion = activeBonusEvent ? getBonusCompletion(activeBonusEvent.id) : null;
+  const bonusLockInfo = activeBonusEvent
+    ? computeBonusLockText(activeBonusEvent.locksAt, activeBonusEvent.status)
+    : null;
+  const isBonusLocked = bonusLockInfo?.isLocked ?? false;
+  const isSubmittingBonus = activeBonusEvent
+    ? bonusSubmittingEventId === activeBonusEvent.id
+    : false;
+  const canSubmitBonus = Boolean(
+    bonusCompletion && bonusCompletion.total > 0 && bonusCompletion.percentage === 100
+  );
+
+  useEffect(() => {
+    if (canSubmitBonus && bonusSubmitError) {
+      setBonusSubmitError(null);
+    }
+  }, [canSubmitBonus, bonusSubmitError]);
+
+  const handleBonusCommitSelection = (questionId: string, optionIds: string[]) => {
+    if (!activeBonusEvent) return;
+    updateBonusSelection(activeBonusEvent.id, questionId, { selectedOptionIds: optionIds });
+  };
+
+  const handleSubmitBonus = async () => {
+    if (!activeBonusEvent) return;
+    if (!fid) {
+      setBonusSubmitError("Connect your Farcaster account to submit bonus picks.");
+      return;
+    }
+    if (!canSubmitBonus) {
+      setBonusSubmitError("Answer every question before locking.");
+      return;
+    }
+    setBonusSubmitError(null);
+    const success = await submitBonusEvent(activeBonusEvent.id);
+    if (success) {
+      setView("home");
+    }
+    if (!success) {
+      setBonusSubmitError("Unable to submit bonus picks. Please try again.");
+    }
+  };
+
+  const activeBonusModalQuestion = activeBonusQuestionId
+    ? activeBonusEvent?.questions.find((question) => question.id === activeBonusQuestionId) ?? null
+    : null;
+  const activeBonusModalSelection = activeBonusModalQuestion && activeBonusEvent
+    ? bonusResponses[activeBonusEvent.id]?.responses?.[activeBonusModalQuestion.id]?.selectedOptionIds ?? []
+    : [];
 
   const { leaderboard, friendsLeaderboard } = useLeaderboards(fid);
   const { userBadges } = useUserBadges(fid);
@@ -234,6 +371,14 @@ export default function GridGuessr() {
             dotdData={dotdData}
             userLeaderboardEntry={userLeaderboardEntry}
             currentLeader={currentLeader}
+            bonusEvent={activeBonusEvent}
+            bonusCompletion={bonusCompletion}
+            bonusLockText={bonusLockInfo?.text ?? null}
+            onOpenBonus={() => {
+              if (!activeBonusEvent) return;
+              setView("bonus");
+            }}
+            bonusLocked={isBonusLocked}
           />
         )}
 
@@ -298,6 +443,44 @@ export default function GridGuessr() {
           />
         )}
 
+        {view === "bonus" && bonusLoading && (
+          <div className="flex-1 px-6 py-10 text-center text-sm text-gray-400">
+            Loading bonus event…
+          </div>
+        )}
+
+        {view === "bonus" && !bonusLoading && (
+          activeBonusEvent ? (
+            <BonusPredictionsView
+              event={activeBonusEvent}
+              responses={activeBonusState}
+              drivers={drivers}
+              teams={teams}
+              completion={
+                bonusCompletion ?? {
+                  completed: 0,
+                  total: activeBonusEvent.questions.length,
+                  percentage: 0,
+                }
+              }
+              isLocked={isBonusLocked}
+              submitting={isSubmittingBonus}
+              canSubmit={canSubmitBonus}
+              submitError={bonusSubmitError}
+              onOpenQuestion={(questionId) => {
+                if (isBonusLocked) return;
+                setActiveBonusQuestionId(questionId);
+              }}
+              onSubmit={handleSubmitBonus}
+              onBack={() => setView("home")}
+            />
+          ) : (
+            <div className="flex-1 px-6 py-10 text-center text-sm text-gray-400">
+              No bonus event is open right now. Check back soon!
+            </div>
+          )
+        )}
+
         {view === "badges" && (
           <BadgesView
             userBadges={userBadges}
@@ -317,6 +500,19 @@ export default function GridGuessr() {
         onSelectDriver={handleSetPrediction}
         onSelectPodium={handleSetPodium}
       />
+      {activeBonusModalQuestion && activeBonusEvent && (
+        <BonusOptionsModal
+          question={activeBonusModalQuestion}
+          selectedOptionIds={activeBonusModalSelection}
+          drivers={drivers}
+          teams={teams}
+          onCommit={(optionIds) => {
+            handleBonusCommitSelection(activeBonusModalQuestion.id, optionIds);
+            setActiveBonusQuestionId(null);
+          }}
+          onClose={() => setActiveBonusQuestionId(null)}
+        />
+      )}
     </div>
   );
 }

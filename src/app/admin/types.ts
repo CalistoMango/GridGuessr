@@ -34,6 +34,50 @@ export interface AdminCredential {
 
 export type AdminMessage = { type: 'success' | 'error'; text: string };
 
+export type BonusEventType = 'sprint' | 'open' | 'winter';
+export type BonusEventStatus = 'draft' | 'scheduled' | 'open' | 'locked' | 'scored' | 'archived';
+export type BonusResponseType = 'choice_driver' | 'choice_team' | 'choice_custom';
+
+export interface AdminBonusOption {
+  id: string;
+  label: string;
+  order: number;
+  driverId?: string | null;
+  teamId?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AdminBonusQuestion {
+  id: string;
+  prompt: string;
+  responseType: BonusResponseType;
+  maxSelections: number;
+  points: number;
+  order: number;
+  correctOptionIds?: string[] | null;
+  options: AdminBonusOption[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AdminBonusEvent {
+  id: string;
+  type: BonusEventType;
+  status: BonusEventStatus;
+  title: string;
+  description?: string | null;
+  raceId?: string | null;
+  opensAt: string;
+  locksAt: string;
+  publishedAt?: string | null;
+  pointsMultiplier: number;
+  createdAt?: string;
+  updatedAt?: string;
+  participantCount?: number;
+  questions: AdminBonusQuestion[];
+}
+
 export interface CastJob {
   id: string;
   template: string;
