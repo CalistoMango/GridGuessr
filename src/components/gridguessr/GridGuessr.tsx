@@ -434,7 +434,7 @@ export default function GridGuessr() {
             activeTab={leaderboardTab}
             onTabChange={setLeaderboardTab}
             fid={fid}
-            onBackToPredict={() => setView("predict")}
+            onBackToPredict={() => setView("home")}
           />
         )}
 
@@ -506,7 +506,7 @@ export default function GridGuessr() {
             userBadges={userBadges}
             isAdmin={isAdmin}
             adminFid={typeof fid === "number" ? fid : null}
-            onBackToPredict={() => setView("predict")}
+            onBackToPredict={() => setView("home")}
           />
         )}
       </div>

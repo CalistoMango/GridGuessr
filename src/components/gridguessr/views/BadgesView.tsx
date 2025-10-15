@@ -118,7 +118,7 @@ const BadgesView: React.FC<BadgesViewProps> = ({ userBadges, onBackToPredict, is
           onClick={onBackToPredict}
           className="flex-1 rounded-xl bg-red-600 p-4 font-semibold text-white transition-all hover:bg-red-700"
         >
-          Back to Predictions
+          Back to Home
         </button>
         <button
           onClick={handleShare}

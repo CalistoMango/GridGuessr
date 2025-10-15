@@ -59,31 +59,25 @@ function RaceCard({ race, expanded, onToggle }: RaceCardProps) {
   return (
     <div className="rounded-2xl border border-gray-700 bg-gray-800/90 p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <button
-          type="button"
-          onClick={onToggle}
-          className="group flex flex-1 items-start justify-between gap-3 text-left"
-        >
-          <div>
-            <div className="flex items-center gap-2">
-              <h4 className="text-lg font-semibold text-white">
+        <button type="button" onClick={onToggle} className="group flex flex-1 gap-3 text-left">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start gap-2">
+              <h4 className="text-lg font-semibold text-white leading-tight">
                 {race.round !== null ? `Round ${race.round} • ` : ""}
                 {race.name}
               </h4>
-              {expanded ? (
-                <ChevronUp className="h-4 w-4 text-gray-400 transition group-hover:text-white" />
-              ) : (
-                <ChevronDown className="h-4 w-4 text-gray-400 transition group-hover:text-white" />
-              )}
+              <span className="mt-1 flex-shrink-0 text-gray-400 transition group-hover:text-white">
+                {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </span>
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-400">
               <span>{formatDate(race.raceDate)}</span>
-              {race.circuit && (
+              {race.circuit ? (
                 <>
                   <span>•</span>
-                  <span>{race.circuit}</span>
+                  <span className="truncate">{race.circuit}</span>
                 </>
-              )}
+              ) : null}
             </div>
           </div>
           <div className="text-right">
@@ -147,34 +141,28 @@ function BonusEventCard({ event, expanded, onToggle }: BonusEventCardProps) {
   return (
     <div className="rounded-2xl border border-purple-600/40 bg-purple-900/20 p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <button
-          type="button"
-          onClick={onToggle}
-          className="group flex flex-1 items-start justify-between gap-3 text-left"
-        >
-          <div>
-            <div className="flex items-center gap-2">
-              <h4 className="text-lg font-semibold text-white">{event.title}</h4>
-              {expanded ? (
-                <ChevronUp className="h-4 w-4 text-purple-200/80 transition group-hover:text-white" />
-              ) : (
-                <ChevronDown className="h-4 w-4 text-purple-200/80 transition group-hover:text-white" />
-              )}
+        <button type="button" onClick={onToggle} className="group flex flex-1 gap-3 text-left">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start gap-2">
+              <h4 className="text-lg font-semibold text-white leading-tight">{event.title}</h4>
+              <span className="mt-1 flex-shrink-0 text-purple-200/80 transition group-hover:text-white">
+                {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </span>
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-purple-200/90">
               <span className="uppercase tracking-widest">{event.type}</span>
-              {event.relatedRaceName && (
+              {event.relatedRaceName ? (
                 <>
                   <span>•</span>
-                  <span>{event.relatedRaceName}</span>
+                  <span className="truncate">{event.relatedRaceName}</span>
                 </>
-              )}
-              {(event.locksAt || event.publishedAt) && (
+              ) : null}
+              {event.locksAt || event.publishedAt ? (
                 <>
                   <span>•</span>
                   <span>{formatDate(event.locksAt ?? event.publishedAt)}</span>
                 </>
-              )}
+              ) : null}
             </div>
           </div>
           <div className="text-right">
