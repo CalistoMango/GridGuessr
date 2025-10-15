@@ -13,6 +13,7 @@ import { useBonusPredictions } from "./hooks/useBonusPredictions";
 import { usePredictionsState } from "./hooks/usePredictionsState";
 import { useRaceSummary } from "./hooks/useRaceSummary";
 import { useUserBadges } from "./hooks/useUserBadges";
+import { useResults } from "./hooks/useResults";
 import { computeBonusLockText, computeLockMetadata, useMarginBuckets } from "./utils";
 import {
   LeaderboardEntry,
@@ -30,6 +31,7 @@ import LeaderboardView from "./views/LeaderboardView";
 import DriverOfTheDayView from "./views/DriverOfTheDayView";
 import BadgesView from "./views/BadgesView";
 import BonusPredictionsView from "./views/BonusPredictionsView";
+import ResultsView from "./views/ResultsView";
 import PredictionModals from "./components/PredictionModals";
 import BonusOptionsModal from "./components/BonusOptionsModal";
 
@@ -239,6 +241,12 @@ export default function GridGuessr() {
 
   const { leaderboard, friendsLeaderboard } = useLeaderboards(fid);
   const { userBadges } = useUserBadges(fid);
+  const {
+    seasons: resultSeasons,
+    loading: resultsLoading,
+    error: resultsError,
+    refresh: refreshResults,
+  } = useResults(fid, { enabled: view === "results" });
   // On each FID change, re-check admin privileges so we can unlock extra UI affordances (e.g. hidden links).
   useEffect(() => {
     let cancelled = false;
@@ -366,6 +374,7 @@ export default function GridGuessr() {
             }}
             onOpenDotd={() => setView("dotd")}
             onOpenLeaderboard={() => setView("leaderboard")}
+            onOpenResults={() => setView("results")}
             previousRace={previousRace}
             topDotdVote={topDotdVote}
             dotdData={dotdData}
@@ -479,6 +488,17 @@ export default function GridGuessr() {
               No bonus event is open right now. Check back soon!
             </div>
           )
+        )}
+
+        {view === "results" && (
+          <ResultsView
+            fid={fid}
+            seasons={resultSeasons}
+            loading={resultsLoading}
+            error={resultsError}
+            onReload={refreshResults}
+            onBack={() => setView("home")}
+          />
         )}
 
         {view === "badges" && (

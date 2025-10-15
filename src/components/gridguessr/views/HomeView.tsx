@@ -1,5 +1,5 @@
 import React from "react";
-import { Sparkles, ThumbsUp, Trophy } from "lucide-react";
+import { BarChart3, Sparkles, ThumbsUp, Trophy } from "lucide-react";
 
 import AddMiniAppButton from "~/components/AddMiniAppButton";
 import {
@@ -21,6 +21,7 @@ interface HomeViewProps {
   onOpenPredict: () => void;
   onOpenDotd: () => void;
   onOpenLeaderboard: () => void;
+  onOpenResults: () => void;
   previousRace: Race | null;
   topDotdVote?: DotdVoteEntry;
   dotdData: DotdData | null;
@@ -41,6 +42,7 @@ const HomeView: React.FC<HomeViewProps> = ({
   onOpenPredict,
   onOpenDotd,
   onOpenLeaderboard,
+  onOpenResults,
   previousRace,
   topDotdVote,
   dotdData,
@@ -160,6 +162,24 @@ const HomeView: React.FC<HomeViewProps> = ({
             className="mt-5 w-full rounded-lg border border-yellow-400/60 px-4 py-2 text-sm font-semibold text-yellow-200 transition-all hover:bg-yellow-500 hover:text-gray-900"
           >
             See Standings
+          </button>
+        </div>
+
+        {/* Results quick access */}
+        <div className="rounded-2xl border border-gray-700 bg-gray-800/90 p-5 md:col-span-2">
+          <div className="mb-4 flex items-center gap-2 text-sm text-gray-400">
+            <BarChart3 className="h-5 w-5 text-green-300" />
+            <span>Results</span>
+          </div>
+          <h3 className="text-lg font-semibold text-white">See how your picks scored</h3>
+          <p className="mt-1 text-sm text-gray-400">
+            Review race breakdowns and bonus events from the 2025 season, including your predictions and points.
+          </p>
+          <button
+            onClick={onOpenResults}
+            className="mt-5 w-full rounded-lg border border-green-400/60 px-4 py-2 text-sm font-semibold text-green-200 transition-all hover:bg-green-500 hover:text-gray-900"
+          >
+            View Results
           </button>
         </div>
       </div>

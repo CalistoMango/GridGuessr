@@ -122,7 +122,7 @@ export interface BonusPredictionUserState {
   scoredAt?: string | null;
 }
 
-export type ViewState = "home" | "predict" | "leaderboard" | "dotd" | "badges" | "submitted" | "bonus";
+export type ViewState = "home" | "predict" | "leaderboard" | "dotd" | "badges" | "submitted" | "bonus" | "results";
 
 export type LeaderboardTab = "global" | "friends";
 
@@ -135,3 +135,58 @@ export type PredictionModalId =
   | "podium-0"
   | "podium-1"
   | "podium-2";
+
+export type RaceCategoryStatus = "pending" | "correct" | "incorrect" | "missing";
+
+export interface RaceCategoryResult {
+  key: string;
+  label: string;
+  actual: string | null;
+  predicted: string | null;
+  pointsAvailable: number;
+  pointsEarned: number;
+  status: RaceCategoryStatus;
+}
+
+export interface RaceResultEntry {
+  raceId: string;
+  name: string;
+  circuit: string | null;
+  round: number | null;
+  raceDate: string | null;
+  wildcardQuestion: string | null;
+  totalPointsEarned: number;
+  categories: RaceCategoryResult[];
+}
+
+export type BonusQuestionStatus = "pending" | "correct" | "incorrect" | "missing";
+
+export interface BonusQuestionResult {
+  questionId: string;
+  prompt: string;
+  pointsAvailable: number;
+  pointsEarned: number;
+  correctOptions: string[];
+  userSelections: string[];
+  status: BonusQuestionStatus;
+}
+
+export interface BonusEventResult {
+  eventId: string;
+  title: string;
+  type: string;
+  locksAt: string | null;
+  publishedAt: string | null;
+  pointsMultiplier: number;
+  relatedRaceId: string | null;
+  relatedRaceName: string | null;
+  totalPointsAvailable: number;
+  totalPointsEarned: number;
+  questions: BonusQuestionResult[];
+}
+
+export interface SeasonResults {
+  season: number;
+  races: RaceResultEntry[];
+  bonusEvents: BonusEventResult[];
+}
