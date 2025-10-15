@@ -156,6 +156,20 @@ const AdminLink: React.FC<AdminLinkProps> = ({ adminFid }) => {
         );
       }
 
+      let isInMiniApp = false;
+      if (typeof sdk.isInMiniApp === "function") {
+        try {
+          isInMiniApp = await sdk.isInMiniApp();
+        } catch {
+          isInMiniApp = false;
+        }
+      }
+
+      if (isInMiniApp && typeof window !== "undefined") {
+        window.location.assign(adminUrl);
+        return;
+      }
+
       const openUrl = sdk.actions.openUrl;
       if (openUrl) {
         await openUrl({ url: adminUrl });
