@@ -99,11 +99,30 @@ export async function POST(request: NextRequest) {
 
     if (predictionsError) throw predictionsError;
 
-    // Score each prediction
-    const userDeltas = new Map<string, number>();
+    const uniquePredictionsMap = new Map<string, any>();
 
-    const scoringPromises = predictions.map(async (prediction) => {
+    (predictions ?? []).forEach((prediction) => {
+      if (!prediction?.user_id) return;
+      const existing = uniquePredictionsMap.get(prediction.user_id);
+      if (!existing) {
+        uniquePredictionsMap.set(prediction.user_id, prediction);
+        return;
+      }
+
+      const existingTime = extractTimestamp(existing.updated_at ?? existing.created_at);
+      const candidateTime = extractTimestamp(prediction.updated_at ?? prediction.created_at);
+
+      if (candidateTime >= existingTime) {
+        uniquePredictionsMap.set(prediction.user_id, prediction);
+      }
+    });
+
+    const uniquePredictions = Array.from(uniquePredictionsMap.values());
+    const impactedUserIds = new Set<string>();
+
+    const scoringPromises = uniquePredictions.map(async (prediction) => {
       let baseScore = 0;
+      impactedUserIds.add(prediction.user_id);
 
       // Pole Position (15 pts)
       if (prediction.pole_driver_id === poleDriverId) {
@@ -204,14 +223,11 @@ export async function POST(request: NextRequest) {
       }
 
       const finalScore = baseScore + bonusScore;
+      const previousScore = normalizeScore(prediction.score) ?? 0;
+      const alreadyScored = typeof prediction.scored_at === 'string' && prediction.scored_at.length > 0;
 
-      const previousScore = prediction.score ?? 0;
-      const scoreDelta = finalScore - previousScore;
-      if (scoreDelta !== 0) {
-        userDeltas.set(
-          prediction.user_id,
-          (userDeltas.get(prediction.user_id) ?? 0) + scoreDelta
-        );
+      if (alreadyScored && previousScore === finalScore) {
+        return;
       }
 
       // Update prediction with score
@@ -226,24 +242,7 @@ export async function POST(request: NextRequest) {
 
     await Promise.all(scoringPromises);
 
-    // Update user totals if necessary
-    const userUpdates = Array.from(userDeltas.entries()).map(async ([userId, delta]) => {
-      if (!delta) return;
-      const { data: user } = await supabaseAdmin
-        .from('users')
-        .select('total_points')
-        .eq('id', userId)
-        .single();
-
-      if (!user) return;
-
-      await supabaseAdmin
-        .from('users')
-        .update({ total_points: (user.total_points ?? 0) + delta })
-        .eq('id', userId);
-    });
-
-    await Promise.all(userUpdates);
+    await recomputeUserTotalPoints(Array.from(impactedUserIds));
 
     // Update race status to completed
     await supabaseAdmin
@@ -290,4 +289,111 @@ async function awardBadge(userId: string, badgeName: string, raceId: string) {
     // Ignore duplicate badge errors
     console.log(`Badge ${badgeName} already awarded or error:`, error);
   }
+}
+
+function extractTimestamp(value: unknown): number {
+  if (typeof value === 'string') {
+    const parsed = new Date(value).getTime();
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return 0;
+}
+
+function normalizeScore(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number.parseFloat(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
+async function recomputeUserTotalPoints(userIds: string[]) {
+  if (!Array.isArray(userIds) || userIds.length === 0) {
+    return;
+  }
+
+  const uniqueUserIds = Array.from(new Set(userIds.filter((id): id is string => typeof id === 'string' && id.length > 0)));
+  if (!uniqueUserIds.length) {
+    return;
+  }
+
+  const { data: predictionRows, error: predictionsError } = await supabaseAdmin
+    .from('predictions')
+    .select('user_id, race_id, score')
+    .in('user_id', uniqueUserIds);
+
+  if (predictionsError) {
+    throw predictionsError;
+  }
+
+  const scoreMap = new Map<string, Map<string, number>>();
+
+  (predictionRows ?? []).forEach((row: any) => {
+    const userId = typeof row?.user_id === 'string' ? row.user_id : null;
+    const raceId = typeof row?.race_id === 'string' ? row.race_id : null;
+    const scoreValue = normalizeScore(row?.score);
+
+    if (!userId || !raceId || scoreValue === null) {
+      return;
+    }
+
+    if (!scoreMap.has(userId)) {
+      scoreMap.set(userId, new Map<string, number>());
+    }
+
+    const raceScores = scoreMap.get(userId)!;
+    const existingScore = raceScores.get(raceId);
+
+    if (typeof existingScore === 'number') {
+      raceScores.set(raceId, Math.max(existingScore, scoreValue));
+    } else {
+      raceScores.set(raceId, scoreValue);
+    }
+  });
+
+  const { data: users, error: usersError } = await supabaseAdmin
+    .from('users')
+    .select('id, bonus_points')
+    .in('id', uniqueUserIds);
+
+  if (usersError) {
+    throw usersError;
+  }
+
+  const bonusMap = new Map<string, number>();
+  (users ?? []).forEach((user) => {
+    if (!user?.id) return;
+    const bonus = typeof user.bonus_points === 'number' && Number.isFinite(user.bonus_points) ? user.bonus_points : 0;
+    bonusMap.set(user.id, bonus);
+  });
+
+  const updatePromises = uniqueUserIds.map(async (userId) => {
+    const raceScores = scoreMap.get(userId);
+    let predictionTotal = 0;
+
+    if (raceScores) {
+      raceScores.forEach((score) => {
+        if (typeof score === 'number' && Number.isFinite(score)) {
+          predictionTotal += score;
+        }
+      });
+    }
+
+    const bonusPoints = bonusMap.get(userId) ?? 0;
+    const totalPoints = predictionTotal + bonusPoints;
+
+    await supabaseAdmin
+      .from('users')
+      .update({ total_points: totalPoints })
+      .eq('id', userId);
+  });
+
+  await Promise.all(updatePromises);
 }

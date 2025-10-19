@@ -114,35 +114,66 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Upsert prediction
-    const { data: prediction, error } = await supabaseAdmin
+    const timestamp = new Date().toISOString();
+
+    // Check for an existing prediction to avoid duplicate rows when unique constraints are missing
+    const { data: existingPrediction, error: existingError } = await supabaseAdmin
       .from('predictions')
-      .upsert({
-        user_id: user.id,
-        race_id: raceId,
-        pole_driver_id: poleDriverId ?? null,
-        winner_driver_id: winnerDriverId ?? null,
-        second_driver_id: secondDriverId ?? null,
-        third_driver_id: thirdDriverId ?? null,
-        fastest_lap_driver_id: fastestLapDriverId ?? null,
-        fastest_pit_team_id: fastestPitTeamId ?? null,
-        first_dnf_driver_id: firstDnfDriverId ?? null,
-        no_dnf: noDnf,
-        safety_car: safetyCar,
-        winning_margin: winningMargin ?? null,
-        wildcard_answer: wildcardAnswer,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'user_id,race_id'
-      })
-      .select()
-      .single();
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('race_id', raceId)
+      .maybeSingle();
 
-    if (error) throw error;
+    if (existingError) {
+      throw existingError;
+    }
 
-    return NextResponse.json({ 
+    const payload = {
+      pole_driver_id: poleDriverId ?? null,
+      winner_driver_id: winnerDriverId ?? null,
+      second_driver_id: secondDriverId ?? null,
+      third_driver_id: thirdDriverId ?? null,
+      fastest_lap_driver_id: fastestLapDriverId ?? null,
+      fastest_pit_team_id: fastestPitTeamId ?? null,
+      first_dnf_driver_id: firstDnfDriverId ?? null,
+      no_dnf: !!noDnf,
+      safety_car: safetyCar,
+      winning_margin: winningMargin ?? null,
+      wildcard_answer: wildcardAnswer,
+      updated_at: timestamp
+    };
+
+    let predictionResponse;
+
+    if (existingPrediction?.id) {
+      const { data, error } = await supabaseAdmin
+        .from('predictions')
+        .update(payload)
+        .eq('id', existingPrediction.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      predictionResponse = data;
+    } else {
+      const { data, error } = await supabaseAdmin
+        .from('predictions')
+        .insert({
+          user_id: user.id,
+          race_id: raceId,
+          ...payload,
+          created_at: timestamp
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      predictionResponse = data;
+    }
+
+    return NextResponse.json({
       success: true,
-      prediction 
+      prediction: predictionResponse
     });
   } catch (error) {
     console.error('Error submitting prediction:', error);
