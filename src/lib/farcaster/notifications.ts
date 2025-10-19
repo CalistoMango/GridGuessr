@@ -106,7 +106,7 @@ function buildFiltersPayload(filters?: FrameNotificationFilters): Record<string,
 function sanitizeTargetFids(targetFids?: number[]): number[] | undefined {
   if (!targetFids) return undefined;
   const normalized = targetFids.filter((fid) => Number.isInteger(fid) && fid > 0);
-  return normalized.length > 0 ? normalized : [];
+  return normalized.length > 0 ? normalized : undefined;
 }
 
 export async function publishFrameNotifications(
@@ -137,9 +137,12 @@ export async function publishFrameNotifications(
       title: options.notification.title.trim(),
       body: options.notification.body.trim(),
       target_url: targetUrl
-    },
-    target_fids: targetFids ?? [],
+    }
   };
+
+  if (targetFids) {
+    requestBody.target_fids = targetFids;
+  }
 
   if (filtersPayload) {
     requestBody.filters = filtersPayload;
