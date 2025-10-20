@@ -22,6 +22,10 @@ export const APP_SHARE_URL: string =
   process.env.NEXT_PUBLIC_SHARE_URL?.trim().length
     ? process.env.NEXT_PUBLIC_SHARE_URL!
     : APP_URL;
+export const APP_SHARE_HANDLE: string =
+  process.env.NEXT_PUBLIC_SHARE_HANDLE?.trim().length
+    ? process.env.NEXT_PUBLIC_SHARE_HANDLE!
+    : "@gridguessr";
 
 /**
  * The name of the mini app as displayed to users.

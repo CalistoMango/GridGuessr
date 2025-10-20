@@ -3,7 +3,7 @@ import { Award, Globe, Share2, Trophy, Users } from "lucide-react";
 
 import { sdk } from "@farcaster/miniapp-sdk";
 
-import { APP_NAME, APP_SHARE_URL } from "~/lib/constants";
+import { APP_SHARE_HANDLE, APP_SHARE_URL } from "~/lib/constants";
 import { LeaderboardEntry, LeaderboardTab } from "../types";
 
 // Dedicated leaderboard view so the main container can just control which tab
@@ -37,7 +37,7 @@ const LeaderboardView: React.FC<LeaderboardViewProps> = ({
       await sdk.actions.composeCast?.({
         text: `🏆 #${userEntry?.rank ?? "?"} ${
           activeTab === "friends" ? "among my degen friends" : "globally"
-        } on ${APP_NAME}\n\n${userEntry?.total_points ?? 0} pts — ${
+        } on ${APP_SHARE_HANDLE}\n\n${userEntry?.total_points ?? 0} pts — ${
           userEntry?.perfect_slates ?? 0
         } perfect rounds! 🏎️\n\nCan you beat me? Come compete and climb the leaderboard 👇`,
         embeds: [APP_SHARE_URL],

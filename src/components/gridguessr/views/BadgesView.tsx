@@ -3,7 +3,7 @@ import { Award, CheckCircle, Share2 } from "lucide-react";
 
 import { sdk } from "@farcaster/miniapp-sdk";
 
-import { APP_NAME, APP_SHARE_URL, APP_URL } from "~/lib/constants";
+import { APP_SHARE_HANDLE, APP_SHARE_URL, APP_URL } from "~/lib/constants";
 import { UserBadges } from "../types";
 
 // Badge gallery and progress tracker. Reads a pre-defined badge catalogue and
@@ -55,7 +55,7 @@ const BadgesView: React.FC<BadgesViewProps> = ({ userBadges, onBackToPredict, is
     // Share a simple progress update anchored to the earned badge count.
     try {
       await sdk.actions.composeCast?.({
-        text: `Progress check 🏅\n${earnedCount}/${TOTAL_BADGES} badges earned on ${APP_NAME}! Keep racing, keep winning 🏁\n\nHow many can you collect? 👇`,
+        text: `Progress check 🏅\n${earnedCount}/${TOTAL_BADGES} badges earned on ${APP_SHARE_HANDLE}! Keep racing, keep winning 🏁\n\nHow many can you collect? 👇`,
         embeds: [APP_SHARE_URL],
       });
     } catch (error) {
