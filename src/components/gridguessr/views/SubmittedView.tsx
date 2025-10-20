@@ -3,7 +3,7 @@ import { Trophy } from "lucide-react";
 
 import { sdk } from "@farcaster/miniapp-sdk";
 
-import { APP_URL } from "~/lib/constants";
+import { APP_SHARE_URL } from "~/lib/constants";
 import { Driver, Predictions, Race } from "../types";
 
 // Confirmation screen shown once a slate is submitted or locked. Focuses on the
@@ -31,7 +31,7 @@ const SubmittedView: React.FC<SubmittedViewProps> = ({
         text: `🏁 Grid set for the ${race?.name ?? "race"}! 🏁\n\nPole: ${
           predictions.pole?.name ?? "TBD"
         }\nWinner: ${predictions.podium[0]?.name ?? "TBD"}\n\nThink I'm wrong? Prove it 👇`,
-        embeds: [`${APP_URL}`],
+        embeds: [APP_SHARE_URL],
       });
     } catch (error) {
       console.error("Error sharing cast:", error);

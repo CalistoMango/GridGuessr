@@ -3,7 +3,7 @@ import { CheckCircle, Share2, ThumbsUp } from "lucide-react";
 
 import { sdk } from "@farcaster/miniapp-sdk";
 
-import { APP_NAME, APP_URL } from "~/lib/constants";
+import { APP_NAME, APP_SHARE_URL } from "~/lib/constants";
 import { DotdData, Driver, Race } from "../types";
 
 // Standalone voting surface for Driver of the Day. Presents the selection grid,
@@ -40,7 +40,7 @@ const DriverOfTheDayView: React.FC<DriverOfTheDayViewProps> = ({
         text: `🔥 Voted ${dotdVote.name} as Driver of the Day on ${APP_NAME} for the ${
           previousRace?.name ?? "previous race"
         }!\n\nWho's yours? Vote now 👇`,
-        embeds: [`${APP_URL}`],
+        embeds: [APP_SHARE_URL],
       });
     } catch (error) {
       console.error("Error sharing cast:", error);
