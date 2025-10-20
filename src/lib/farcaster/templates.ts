@@ -665,8 +665,8 @@ async function loadRaceWinnerName(raceId: string): Promise<string | null> {
   return `${number}${driverRow.name}${team}`.trim();
 }
 
-async function loadUserNameMap(userIds: string[]): Promise<Map<string, string>> {
-  const map = new Map<string, string>();
+async function loadUserNameMap(userIds: string[]): Promise<Map<string, { displayName: string; username: string }>> {
+  const map = new Map<string, { displayName: string; username: string }>();
   if (!userIds.length) {
     return map;
   }
@@ -681,16 +681,21 @@ async function loadUserNameMap(userIds: string[]): Promise<Map<string, string>> 
   }
 
   (data ?? []).forEach((user) => {
-    const name = normalizeUserName(user) ?? (typeof user.id === 'string' ? user.id : null);
-    if (name) {
-      map.set(String(user.id), name);
+    const displayName = normalizeUserName(user) ?? (typeof user.id === 'string' ? user.id : '');
+    const username = (user.username ?? user.display_name ?? user.id ?? '').trim();
+    if (displayName && username) {
+      map.set(String(user.id), { displayName, username });
     }
   });
 
   return map;
 }
 
-function formatLeaderboard(entries: Array<{ name: string; score: number }>): string {
+function formatUserMention(displayName: string, username: string): string {
+  return `${displayName} (@${username})`;
+}
+
+function formatLeaderboard(entries: Array<{ displayName: string; username: string; score: number }>): string {
   if (!entries.length) {
     return 'No predictions have been scored yet.';
   }
@@ -698,7 +703,8 @@ function formatLeaderboard(entries: Array<{ name: string; score: number }>): str
   return entries
     .map((entry, index) => {
       const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
-      return `${medal} ${entry.name} — ${Math.round(entry.score)} pts`;
+      const userMention = formatUserMention(entry.displayName, entry.username);
+      return `${medal} ${userMention} — ${Math.round(entry.score)} pts`;
     })
     .join('\n');
 }
@@ -736,10 +742,14 @@ export async function buildRaceResultsSummaryCast(args: RaceResultsSummaryArgs):
   const userIds = scoredEntries.map((row) => row.user_id);
   const userNameMap = await loadUserNameMap(userIds);
 
-  const leaderboardEntries = scoredEntries.map((row) => ({
-    name: userNameMap.get(row.user_id) ?? row.user_id,
-    score: row.score
-  }));
+  const leaderboardEntries = scoredEntries.map((row) => {
+    const userData = userNameMap.get(row.user_id);
+    return {
+      displayName: userData?.displayName ?? row.user_id,
+      username: userData?.username ?? row.user_id,
+      score: row.score
+    };
+  });
 
   const leaderboard = formatLeaderboard(leaderboardEntries);
 
@@ -787,23 +797,29 @@ export async function buildPerfectSlateCast(args: PerfectSlateArgs): Promise<{ p
   const userIds = perfectRows.map((row) => row.user_id);
   const userNameMap = await loadUserNameMap(userIds);
 
-  const sortedNames = perfectRows
-    .map((row) => userNameMap.get(row.user_id) ?? row.user_id)
-    .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  const sortedUsers = perfectRows
+    .map((row) => {
+      const userData = userNameMap.get(row.user_id);
+      return {
+        displayName: userData?.displayName ?? row.user_id,
+        username: userData?.username ?? row.user_id
+      };
+    })
+    .sort((a, b) => a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' }));
 
   const DISPLAY_LIMIT = 5;
-  const displayedUsers = sortedNames.slice(0, DISPLAY_LIMIT);
-  let list = displayedUsers.map((name) => `🏁 ${name}`).join('\n');
+  const displayedUsers = sortedUsers.slice(0, DISPLAY_LIMIT);
+  let list = displayedUsers.map((user) => `🏁 ${formatUserMention(user.displayName, user.username)}`).join('\n');
 
-  if (sortedNames.length > DISPLAY_LIMIT) {
-    const remaining = sortedNames.length - DISPLAY_LIMIT;
+  if (sortedUsers.length > DISPLAY_LIMIT) {
+    const remaining = sortedUsers.length - DISPLAY_LIMIT;
     list = `${list}\n…and ${remaining} more`;
   }
 
   const text = truncate(
     renderTemplate(PERFECT_SLATE_TEMPLATE_LINES, {
       raceName: race.name,
-      count: String(sortedNames.length),
+      count: String(sortedUsers.length),
       list
     })
   );
@@ -814,8 +830,8 @@ export async function buildPerfectSlateCast(args: PerfectSlateArgs): Promise<{ p
       embeds: [{ url: DEFAULT_EMBED_URL }],
       channelId: args.channelId ?? null
     },
-    perfectCount: sortedNames.length,
-    displayedUsers
+    perfectCount: sortedUsers.length,
+    displayedUsers: displayedUsers.map(u => u.displayName)
   };
 }
 
@@ -868,19 +884,24 @@ export async function buildCloseCallsCast(args: CloseCallsArgs): Promise<{ paylo
   const userNameMap = await loadUserNameMap(userIds);
 
   const sorted = closeCalls
-    .map((entry) => ({
-      name: userNameMap.get(entry.userId) ?? entry.userId,
-      score: entry.score
-    }))
+    .map((entry) => {
+      const userData = userNameMap.get(entry.userId);
+      return {
+        displayName: userData?.displayName ?? entry.userId,
+        username: userData?.username ?? entry.userId,
+        score: entry.score
+      };
+    })
     .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 
   const DISPLAY_LIMIT = 3;
-  const displayedUsers = sorted.slice(0, DISPLAY_LIMIT).map((entry) => entry.name);
+  const displayedUsers = sorted.slice(0, DISPLAY_LIMIT);
+  const formattedNames = displayedUsers.map((entry) => formatUserMention(entry.displayName, entry.username));
 
   const namesLine =
-    displayedUsers.length === 0
+    formattedNames.length === 0
       ? ''
-      : displayedUsers.join(', ') +
+      : formattedNames.join(', ') +
         (sorted.length > DISPLAY_LIMIT ? `, +${sorted.length - DISPLAY_LIMIT} more` : '');
 
   const text = truncate(
@@ -896,7 +917,7 @@ export async function buildCloseCallsCast(args: CloseCallsArgs): Promise<{ paylo
       channelId: args.channelId ?? null
     },
     closeCount: closeCalls.length,
-    displayedUsers
+    displayedUsers: displayedUsers.map(u => u.displayName)
   };
 }
 
@@ -919,10 +940,12 @@ export async function buildLeaderboardUpdateCast(args: LeaderboardUpdateArgs): P
 
   const topEntries = (leaderboardRows ?? [])
     .map((row, index) => {
-      const name = normalizeUserName(row) ?? 'Player';
+      const displayName = normalizeUserName(row) ?? 'Player';
+      const username = row?.username ?? displayName;
       const points = typeof row?.total_points === 'number' ? row.total_points : 0;
       const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉';
-      return `${medal} ${name} — ${points} pts`;
+      const userMention = formatUserMention(displayName, username);
+      return `${medal} ${userMention} — ${points} pts`;
     });
 
   if (!topEntries.length) {
