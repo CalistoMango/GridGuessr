@@ -148,6 +148,10 @@ export async function publishFrameNotifications(
     requestBody.filters = filtersPayload;
   }
 
+  if (!targetFids && !filtersPayload) {
+    requestBody.audience = 'all';
+  }
+
   if (options.campaignId && options.campaignId.trim()) {
     requestBody.campaign_id = options.campaignId.trim();
   }
