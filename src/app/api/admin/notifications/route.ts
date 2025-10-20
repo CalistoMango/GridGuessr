@@ -377,8 +377,8 @@ export async function POST(request: NextRequest) {
 
         const result = await publishFrameNotifications({
           notification: {
-            title: `${race.name} results & scores live`,
-            body: 'Scores posted. Check your score and vote for the Driver of the Day!',
+            title: 'Race results live',
+            body: `${race.name} scores are posted! Check your score and vote for the Driver of the Day!`,
             targetUrl: APP_URL
           },
           campaignId: `results-live-${race.id}`

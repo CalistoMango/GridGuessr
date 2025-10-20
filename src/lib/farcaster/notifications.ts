@@ -106,7 +106,8 @@ function buildFiltersPayload(filters?: FrameNotificationFilters): Record<string,
 function sanitizeTargetFids(targetFids?: number[]): number[] | undefined {
   if (!targetFids) return undefined;
   const normalized = targetFids.filter((fid) => Number.isInteger(fid) && fid > 0);
-  return normalized.length > 0 ? normalized : undefined;
+  return normalized.length > 0 ? normalized : [];
+
 }
 
 export async function publishFrameNotifications(
@@ -136,20 +137,14 @@ export async function publishFrameNotifications(
     notification: {
       title: options.notification.title.trim(),
       body: options.notification.body.trim(),
-      target_url: targetUrl
-    }
+      target_url: targetUrl,
+      uuid: crypto.randomUUID()
+    },
+    target_fids: targetFids ?? []
   };
-
-  if (targetFids) {
-    requestBody.target_fids = targetFids;
-  }
 
   if (filtersPayload) {
     requestBody.filters = filtersPayload;
-  }
-
-  if (!targetFids && !filtersPayload) {
-    requestBody.audience = 'all';
   }
 
   if (options.campaignId && options.campaignId.trim()) {
@@ -166,6 +161,9 @@ export async function publishFrameNotifications(
     };
   }
 
+  // Debug logging to see what we're sending
+  console.log('[Notifications] Request to Neynar:', JSON.stringify(requestBody, null, 2));
+
   const response = await fetch(NEYNAR_NOTIFICATIONS_ENDPOINT, {
     method: 'POST',
     headers: {
@@ -178,6 +176,7 @@ export async function publishFrameNotifications(
   const raw = (await response.json()) as Record<string, unknown>;
 
   if (!response.ok) {
+    console.error('[Notifications] Neynar error response:', JSON.stringify(raw, null, 2));
     const message = typeof raw?.message === 'string' ? raw.message : JSON.stringify(raw);
     throw new Error(`Failed to publish notifications (${response.status}): ${message}`);
   }
