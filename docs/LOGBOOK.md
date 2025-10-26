@@ -14,3 +14,11 @@
 - docs: listed TODOs for technical debt (Redis migration, rate limiting, retry logic, GDPR compliance)
 
 ---
+
+## 2025-10-26 - Documentation Sync
+
+- docs: synchronized all documentation with current codebase
+- Updated README.md, docs/API.md, docs/DATA_MODEL.md, docs/FEATURES.md, docs/PROJECT_SETUP.md, docs/LLM.md to reflect current routes, schema, env vars, badges, and Farcaster automation
+- Removed stale references to outdated scoring thresholds, deprecated cron cadences, and unused libraries
+
+---

@@ -1,344 +1,141 @@
-# Features & Business Logic
+# Feature Reference & Business Rules
 
-## Race Prediction System
-
-### How It Works
-1. Admin creates race with `lock_time` and `race_date`
-2. Users submit predictions before `lock_time`
-3. Race happens in real life
-4. Admin submits official results via `/api/admin/results`
-5. Scoring engine auto-calculates points for all predictions
-6. Badges awarded for perfect slates (100 points)
-
-### Prediction Categories (9 total)
-Each category worth specific points:
-
-1. **Pole Position** (15 pts) – Driver who qualifies fastest
-2. **Race Winner** (15 pts) – Driver who wins the race
-3. **2nd Place** (10 pts) – Second place finisher
-4. **3rd Place** (10 pts) – Third place finisher
-5. **Fastest Lap** (10 pts) – Driver with fastest lap during race
-6. **Fastest Pit Stop** (10 pts) – Team with fastest pit stop
-7. **First DNF** (10 pts) – First driver to retire (Did Not Finish)
-8. **Safety Car** (10 pts) – Yes/No: Will safety car be deployed?
-9. **Winning Margin** (10 pts) – Time gap between 1st and 2nd (bucketed)
-
-**Wildcard Question** (+10 pts) – Custom yes/no question per race (e.g., "Will there be a red flag?")
-
-**Total Possible**: 100 points (9 categories + wildcard)
-
-### Winning Margin Buckets
-Predefined time ranges (exact implementation in scoring logic):
-- `0-5s` – Very close finish
-- `5-10s` – Close finish
-- `10-20s` – Comfortable win
-- `20-30s` – Dominant win
-- `30+s` – Total domination
-
-### Rules & Invariants
-
-**Lock Time**:
-- Predictions cannot be submitted/edited after `race.lock_time`
-- Enforced in API layer (see [/api/predictions/route.ts](../src/app/api/predictions/route.ts))
-- Race status transitions: `upcoming` → `locked` → `completed`
-
-**Uniqueness**:
-- One prediction per user per race (unique constraint on `(user_id, race_id)`)
-- Upsert behavior: Updates existing prediction if before lock time
-
-**Scoring**:
-- Scoring triggered by admin submitting race results
-- All predictions for race scored in single transaction
-- Points added to `users.total_points` (additive only)
-- `predictions.score` and `predictions.scored_at` updated
-
-**Perfect Slate**:
-- Awarded when user scores all 9 base categories correctly (90+ points)
-- TODO: Verify exact threshold (90 vs 100 points including wildcard)
-- Badge awarded automatically during scoring
-- `users.perfect_slates` counter incremented
+This guide links implementation details to the product experience so future changes stay aligned with shipped behaviour.
 
 ---
 
-## Leaderboard System
+## Race Predictions
 
-### Global Leaderboard
-- All users ranked by `total_points DESC`
-- No time limit (all-time leaderboard)
-- Includes `bonus_points` from bonus prediction events
-- Default limit: 100 users
+- **Flow:** `GridGuessr.tsx` orchestrates prediction state via `usePredictionsState`, pulling current race metadata with `useRaceSummary`. Data is persisted through `/api/predictions` (GET/POST) which normalises FIDs, ensures user records, and upserts predictions by `(user_id, race_id)`.
+- **Locking:** `computeLockMetadata` marks the grid as locked when `race.lock_time` has passed or `races.status ∈ {'locked','completed'}`. The API layer rejects submissions once locked or past the deadline.
+- **Winning margin buckets:** UI presents `["0-2s","2-4s","4-7s","7-12s","12-20s","20s+"]` via `useMarginBuckets`, guaranteeing consistent labels.
 
-### Friends Leaderboard
-- Filtered to users the viewer follows on Farcaster
-- Follow list fetched from Neynar API
-- **Cache TTL**: 60 minutes (stored in `friends_follow_cache` table)
-- Cache key: viewer's FID
-- Cache stores: array of followed FIDs with `expires_at` timestamp
+### Scoring Categories
+Base score totals 100 points; the wildcard is treated as a separate +10 bonus.
 
-**Performance Optimization**:
-- Follow lists cached in database (not just memory)
-- Survives server restarts
-- Reduces Neynar API calls significantly
+| Category | Points | Notes |
+| --- | --- | --- |
+| Pole Position | 15 | Matches `race_results.pole_driver_id` |
+| Race Winner | 15 | |
+| Second Place | 10 | |
+| Third Place | 10 | |
+| Fastest Lap | 10 | |
+| Fastest Pit Stop Team | 10 | |
+| First DNF / No DNF | 10 | `no_dnf` overrides the driver pick |
+| Safety Car (Yes/No) | 10 | |
+| Winning Margin Bucket | 10 | String equality (`winning_margin`) |
+| **Wildcard** | +10 | `wildcard_answer === wildcard_result` |
 
-### User Rank
-- User's global rank calculated as: `SELECT COUNT(*) + 1 FROM users WHERE total_points > user.total_points`
-- Returned alongside leaderboard in `/api/leaderboard` response
-
----
-
-## Bonus Prediction System
-
-### Event Types
-1. **Sprint** (`type: 'sprint'`) – Sprint race weekend predictions (tied to `race_id`)
-2. **Open** (`type: 'open'`) – Open-ended predictions (no race association)
-3. **Winter** (`type: 'winter'`) – Off-season predictions (e.g., driver moves, team changes)
-
-### Event Lifecycle
-```
-draft → scheduled → open → locked → scored → archived
-```
-
-**Status Transitions**:
-- `draft` – Admin creating event (not visible to users)
-- `scheduled` – Event created, will open at `opens_at` time
-- `open` – Users can submit responses
-- `locked` – Submissions closed (at `locks_at` time)
-- `scored` – Responses evaluated and points awarded
-- `archived` – Event hidden from default queries
-
-### Question Types
-1. **choice_driver** – Select driver(s) from roster
-2. **choice_team** – Select team(s) from roster
-3. **choice_custom** – Custom text options
-
-**Multi-select**: Questions can allow multiple selections (`max_selections > 1`)
-
-### Scoring Logic
-See [lib/bonusPredictions.ts](../src/lib/bonusPredictions.ts:evaluateBonusResponse)
-
-**Full Points**:
-- User selected ALL correct options and NO incorrect options
-
-**Partial Points**:
-- Proportional to correct selections (e.g., 2/3 correct = 67% of points)
-
-**Zero Points**:
-- User selected any incorrect option
-- User missed correct option in single-select question
-
-**Points Multiplier**:
-- Event-level multiplier applied to all questions (e.g., `1.5x` for sprint events)
-- Final points = `base_points * multiplier`
-
-### Invariants
-- One response per user per question (unique constraint on `(event_id, question_id, user_id)`)
-- Responses upsertable before event locks
-- Points awarded only after admin scores event
-- Bonus points tracked separately from race points (`users.bonus_points`)
+Badge and score updates happen in `/api/admin/results` (see _Results & Scoring_). Perfect Slate requires all nine base categories; Grand Prix Master additionally needs the wildcard.
 
 ---
 
-## Badge System
+## Results & Scoring
 
-### Badge Types
-1. **Prediction** (`type: 'prediction'`) – Earned from race predictions
-2. **Achievement** (`type: 'achievement'`) – Meta achievements (e.g., "5 predictions in a row")
+- Admins submit results through `/api/admin/results`. The route:
+  1. Upserts `race_results` for the race.
+  2. Deduplicates predictions per user (latest timestamp wins).
+  3. Calculates `baseScore` + `bonusScore`, updates `predictions.score` and `predictions.scored_at`.
+  4. Awards badges and increments `users.total_points` (`prediction totals + bonus_points`).
+  5. Marks the race `status='completed'`.
+- **Badges awarded by scorer:**
+  - Category hits: `Pole Prophet`, `Winner Wizard`, `Silver Seer`, `Bronze Brainiac`, `Lap Legend`, `Pit Psychic`, `DNF Detective`, `Safety Sage`, `Margin Master`.
+  - Podium combos: `Podium Prophet`.
+  - Milestones: `Half Century` (≥50 base points), `Perfect Slate` (100 base points), `Wildcard Wizard` (wildcard correct), `Grand Prix Master` (Perfect Slate + Wildcard).
+- **Results surface:** `/api/results` aggregates season data into `seasons[].races[].categories[]` plus bonus event summaries. Sorting prioritises round numbers, then race dates.
 
-### Current Badges
+---
 
-**Perfect Slate** (prediction badge):
-- Awarded when user scores 100 points on a race
-- Tied to specific race (`user_badges.race_id`)
-- Can be earned multiple times (one per race)
+## Bonus Prediction Events
 
-**First Blood** (achievement badge):
-- TODO: Implement – Awarded for first prediction ever
-- One-time only
-
-**Streak Master** (achievement badge):
-- TODO: Implement – Awarded for 5 consecutive races with predictions
-- One-time only
-
-### Badge Awarding Logic
-See scoring logic in [/api/admin/results/route.ts](../src/app/api/admin/results/route.ts)
-
-**Automatic Awards**:
-- Perfect Slate badge awarded during race scoring
-- Checked for each prediction with `score >= 100`
-- Idempotent: Won't award duplicate badges for same race
-
-**Manual Awards**:
-- Achievement badges currently require manual insertion
-- TODO: Implement auto-detection in scoring pipeline
+- Data access flows through `lib/bonusPredictions.ts` helpers and `/api/bonus/events` / `/api/bonus/responses`.
+- **Event lifecycle:** `draft → scheduled → open → locked → scored → archived`. The helper recalculates a derived status at read time; divergences are persisted automatically.
+- **Question types:** `choice_driver`, `choice_team`, `choice_custom`, and `free_text`. Options can reference drivers/teams or arbitrary labels.
+- **Submission guardrails:** `/api/bonus/responses` declines writes when status ∈ `{locked, scored, archived}` or when `locks_at` is in the past. Requests are sanitised so only valid option IDs (respecting `max_selections`) are stored.
+- **Scoring:** Points are stored on each response (`points_awarded`) and multiplied by `event.points_multiplier`. `/api/results` consumes these values to present totals and statuses (`pending`, `missing`, `correct`, `incorrect`).
 
 ---
 
 ## Driver of the Day (DOTD)
 
-### How It Works
-1. Race completes
-2. Users vote for best-performing driver
-3. Votes aggregated in real-time
-4. Admin posts DOTD summary to Farcaster after voting window closes
-
-### Rules
-- One vote per user per race (unique constraint)
-- Votes can be changed (upsert behavior)
-- No deadline enforcement (yet) – TODO: Add `voting_closes_at` to races
-
-### Vote Aggregation
-```typescript
-// Example response from GET /api/dotd?raceId=...
-{
-  "votes": {
-    "driver-uuid-1": 145,  // Max Verstappen
-    "driver-uuid-2": 89,   // Lando Norris
-    "driver-uuid-3": 67    // Charles Leclerc
-  },
-  "totalVotes": 301,
-  "userVote": "driver-uuid-1"  // If user voted
-}
-```
-
-### Farcaster Integration
-- DOTD summary cast scheduled after race completion
-- Cast includes winner, vote percentages, top 3 drivers
-- Template defined in [lib/farcaster/templates.ts](../src/lib/farcaster/templates.ts)
+- GET `/api/dotd` aggregates votes for a given race (`race_id`) and optionally returns the viewer’s current selection.
+- POST `/api/dotd` enforces:
+  - The race must exist and have `status='completed'`.
+  - Users are created/updated via `ensureUserByFid`.
+  - Votes are upserted on `(race_id, user_id)` so users can change their mind.
+- The admin scorer does not currently close voting windows—`ComputeLockMetadata` exposes this as a TODO (see Open Items).
 
 ---
 
-## Farcaster Cast Jobs
+## Leaderboards
 
-### Job Types
-1. **lock_reminder** – Reminder that predictions lock soon
-2. **dotd_summary** – Driver of the Day voting results
-3. **leaderboard** – Weekly leaderboard updates
-4. **perfect_slate** – Celebrate users who scored 100 points
-
-### Scheduling
-**Lock Reminders**:
-- Scheduled when race created (see [/api/admin/races/route.ts](../src/app/api/admin/races/route.ts))
-- 3 reminders per race:
-  - 2 hours before lock
-  - 1 hour before lock
-  - 30 minutes before lock
-
-**DOTD Summary**:
-- Scheduled manually by admin after race completion
-- Or auto-scheduled after results submitted (TODO: verify implementation)
-
-**Leaderboard Updates**:
-- Currently manual (admin triggers via `/api/admin/farcaster`)
-- TODO: Add weekly cron job
-
-### Job Processing
-- Cron job runs every 5 minutes: `GET /api/cron/farcaster`
-- Fetches pending jobs where `scheduled_at <= now()` and `posted_at IS NULL`
-- Posts cast via Neynar API
-- Updates `posted_at` and `cast_hash` on success
-- Stores `error_message` on failure (retries not implemented)
-
-### Cast Templates
-See [lib/farcaster/templates.ts](../src/lib/farcaster/templates.ts)
-
-Example lock reminder:
-```
-🏁 Predictions lock in 1 hour for the Bahrain Grand Prix!
-
-Make your picks now 👇
-[Launch GridGuessr]
-```
+- **Global leaderboard:** `/api/leaderboard?type=global` returns top users by `total_points` descending. Missing display info is backfilled with Neynar profile data when an API key is available.
+- **Friends leaderboard:** Needs `fid` and Neynar API access. The route pulls following lists (capped at 300), persists `friend_fids` + `expires_at` in `friends_follow_cache`, and caches results in memory between requests.
+  - Cache TTL: 60 minutes (`FOLLOW_CACHE_TTL_MS`).
+  - Subsequent requests refresh Supabase data but reuse cached FID sets until expiry.
+- **Ranks:** Response appends `rank` based on sorted order.
 
 ---
 
-## Frame Notifications
+## Badges & Inventory
 
-### How It Works
-- Admin sends notifications via `/api/admin/notifications`
-- Uses Neynar Frame Notifications API
-- Targets GridGuessr users on Farcaster
-- Appears in users' Warpcast notification tray
-
-### Filtering Options
-1. **filterFids** – Only send to specific FIDs (whitelist)
-2. **excludeFids** – Exclude specific FIDs (blacklist)
-3. **followersOnly** – Only send to followers of @your-app-handle account
-
-**Example Use Cases**:
-- New race available: Notify all active users
-- Results published: Notify users who predicted that race
-- Perfect slate celebration: Notify users who got 100 points
-
-### Notification Payload
-```typescript
-{
-  title: "New Race Available!",
-  body: "Make your predictions for the Monaco Grand Prix",
-  targetUrl: "https://your-app.vercel.app",
-  // Optional filters:
-  filterFids: [123, 456],
-  excludeFids: [789],
-  followersOnly: true
-}
-```
+- Badge catalog lives in `badges`. Seed via `scripts/seed-badges.mjs`.
+- Users earn badges through:
+  - Admin scorer (automatic awards).
+  - Potential future manual tooling (not yet implemented).
+- `/api/badges` returns badges keyed by camelCase names with `earned` and `count` flags so the UI can highlight streaks.
+- Unique constraint `(user_id, badge_id, race_id)` prevents duplicates per race.
 
 ---
 
-## Data Invariants (Critical!)
+## Farcaster Automations & Notifications
 
-**Never violate these; they ensure data integrity:**
-
-1. **Points are additive**: `total_points` and `bonus_points` never decrease (except manual admin correction)
-2. **Lock time is sacred**: Predictions cannot be edited after `race.lock_time` or when `race.status != 'upcoming'`
-3. **One prediction per race**: Unique constraint `(user_id, race_id)` enforced at DB level
-4. **One vote per race**: Unique constraint `(user_id, race_id)` for DOTD votes
-5. **Perfect slate threshold**: Badge awarded when `score >= 100` (TODO: verify exact threshold)
-6. **FID immutability**: `users.fid` never changes after user creation
-7. **Service role for scoring**: Always use `supabaseAdmin` for scoring operations (bypasses RLS)
-8. **Anon client for reads**: Use `supabase` (anon key) for user-facing queries (respects RLS)
-
----
-
-## Edge Cases & Known Limitations
-
-### Race Predictions
-- **No DNF + First DNF conflict**: User can predict both `no_dnf = true` and `first_dnf_driver_id`. Scoring logic awards points for whichever is correct.
-- **Wildcard questions**: Not all races have wildcard questions (`wildcard_question` can be null). Points not awarded if null.
-- **Driver changes mid-season**: If driver moves teams, old predictions still reference old `driver.team`. Not retroactively updated.
-
-### Leaderboard
-- **Friend cache staleness**: Follow lists cached 60min. Users might not see new followers for up to 1 hour.
-- **Large follow lists**: Neynar API capped at 300 follows (see `FOLLOW_TOTAL_CAP`). Users following >300 won't see all friends.
-- **Deleted users**: If user deletes Farcaster account, their GridGuessr profile persists. No auto-cleanup.
-
-### Bonus Predictions
-- **Partial scoring ambiguity**: Partial credit formula TBD (see [lib/bonusPredictions.ts](../src/lib/bonusPredictions.ts))
-- **No retroactive scoring**: Changing question options after users respond doesn't re-score existing responses
-
-### Farcaster Integration
-- **Cast job failures**: No retry mechanism. Failed jobs stay in table with `error_message` set.
-- **Deleted casts**: If admin deletes cast manually on Farcaster, `cast_hash` becomes invalid but stays in DB.
-- **Rate limiting**: Neynar API has rate limits. No backoff/retry logic implemented.
+- **Scheduling jobs:** `ensureLockReminderJobsForRace` and `ensureDriverOfDaySummaryJob` (in `lib/farcaster/jobs.ts`) enqueue casts into `farcaster_cast_jobs`.
+  - Lock reminders default offsets: 1440 minutes (24h) and 60 minutes before `race.lock_time`.
+  - DOTD summaries default to 48 hours after the race date.
+- **Cron processing:** `/api/cron/farcaster` (GET) runs three tasks:
+  1. Schedule lock reminder jobs for upcoming/locked races.
+  2. Ensure Driver of the Day summary jobs for completed races.
+  3. Claim due jobs (max 10 per run) and dispatch casts via Neynar (`postCast`). Tracks `sent`, `skipped`, `failed`.
+- **Admin controls:** `/api/admin/farcaster` exposes templates for lock reminders, results summaries, perfect slate callouts, close calls, leaderboard updates, prediction consensus, and DOTD recaps. `FARCASTER_DRY_RUN` / `NEXT_PUBLIC_FARCASTER_DRY_RUN` keep requests in dry-run mode when enabled.
+- **Frame notifications:** `/api/admin/notifications` uses `publishFrameNotifications` to send Neynar frame alerts. Actions include manual campaigns, lock reminders (targeting users without predictions), and results broadcasts.
 
 ---
 
-## Future Considerations
+## Admin Console
 
-### Planned Features
-- [ ] Streak badges (consecutive races with predictions)
-- [ ] Seasonal leaderboards (reset each year)
-- [ ] Team leaderboards (aggregate points by favorite team)
-- [ ] Push notifications via Farcaster (opt-in)
-- [ ] Prediction analytics (most accurate users per category)
-- [ ] Historical race data visualization
-- [ ] Penalty system for disqualified drivers (adjust scores retroactively)
+Located at `/admin` (client components in `src/app/admin/**`) and backed by:
 
-### Technical Debt
-- [ ] Add `voting_closes_at` to races (DOTD deadline enforcement)
-- [ ] Implement perfect slate threshold verification (90 vs 100 points)
-- [ ] Add retry logic for failed cast jobs
-- [ ] Increase friends follow cap beyond 300
-- [ ] Add partial scoring formula documentation
-- [ ] Auto-cleanup deleted Farcaster users (GDPR compliance)
-- [ ] Add rate limiting to public API endpoints
-- [ ] Migrate friends cache to Redis (currently Postgres table)
+- `POST /api/admin/auth` – Credential check (FID list, password, or token).
+- `GET/POST/PUT/DELETE /api/admin/races` – Race CRUD with auto-sync to Farcaster job schedules.
+- `POST /api/admin/results` – Scoring pipeline described above.
+- `POST /api/admin/notifications` – Frame notifications.
+- `POST /api/admin/farcaster` – Cast templates and cast deletion helper.
+- `GET /api/admin/stats` – Snapshot of current prediction distributions, DOTD votes, and user counts.
+
+Requests authenticate via `authenticateAdmin` which accepts FID values (from `ADMIN_FIDS`), password, or bearer token matching the same credentials.
+
+---
+
+## Invariants & Edge Cases
+
+1. **One prediction per race per user.** Enforced by DB unique constraint and duplicated in API guards.
+2. **Predictions immutable post-lock.** The API checks both `race.status` and `lock_time`.
+3. **Score monotonicity.** `users.total_points` and `bonus_points` only increase through automated flows; manual adjustments must keep totals consistent.
+4. **Badge uniqueness.** `user_badges` unique key prevents duplicate awards for the same race. Admin scripts should respect this by catching duplicates.
+5. **Bonus response overwrite.** Latest valid payload wins; submissions are idempotent for each question.
+6. **Friends data freshness.** Cache TTL is 60 minutes—expect up to one hour of staleness for newly-followed accounts.
+7. **Farcaster signer requirements.** All cast/notification flows require `FARCASTER_SIGNER_UUID` (or `NEYNAR_SIGNER_UUID`) and an API key (`NEYNAR_API_KEY` or `FARCASTER_API_KEY`).
+8. **Cron secret optional:** `/api/cron/farcaster` enforces bearer auth when `CRON_SECRET` is set; otherwise remains open for development.
+
+---
+
+## Open Items / TODOs
+
+- Add schema-level support for a DOTD voting close timestamp to prevent late submissions.
+- Layer rate limiting or abuse protection on public endpoints (`predictions`, `dotd`, `leaderboard`, `bonus`).
+- Consider replay/drop detection for bonus submissions (currently first valid payload overwrites silently).
+- Establish cleanup policy for `friends_follow_cache` rows that miss refresh windows.
+- Improve Farcaster job retry feedback (multiple failures currently mark jobs as `failed` without escalation).
+
+Keep this document aligned with code by updating it whenever business rules, badge logic, or automation cadences change.

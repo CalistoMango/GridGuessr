@@ -1,200 +1,191 @@
-# Project Setup
+# Project Setup Guide
 
-## Stack Overview
+Last refreshed: 2025-10-26. Follow these steps to keep local, staging, and production environments in sync with the codebase.
 
-**GridGuessr** is a Farcaster Mini App built with:
-- **Frontend**: Next.js 15, React 19, TypeScript 5, TailwindCSS
-- **Backend**: Next.js API routes (Node.js runtime)
-- **Database**: Supabase (PostgreSQL)
-- **Auth**: Farcaster QuickAuth + Neynar integration
-- **Social**: Farcaster casts, frame notifications, leaderboard caching
-- **Blockchain**: Base chain (via Wagmi/Viem)
-- **State**: TanStack React Query for data fetching
-- **Validation**: Zod for schema validation
+---
+
+## Stack Snapshot
+- **Framework:** Next.js 15 (App Router) with React 19 and TypeScript 5.x.
+- **Styling:** Tailwind CSS 3.4, class-variance-authority, tailwind-merge, tailwindcss-animate.
+- **State/Data:** TanStack React Query 5.61, Supabase JS 2.58 (anon + service role clients).
+- **Mini app runtime:** @farcaster/miniapp-sdk, @neynar/react, @farcaster/quick-auth.
+- **Wallets:** Wagmi 2.14 + Viem 2.23 (Base, Optimism, Mainnet, Degen, Unichain, Celo) and optional Solana provider.
+- **Deployments:** Vercel (`npm run deploy:vercel`) and cron-triggered Farcaster automation.
+
+---
 
 ## Environment Variables
 
-Required in `.env.local`:
+Use `.env` for shared values and `.env.local` for developer-specific overrides. `scripts/dev.js` automatically loads `.env.local`; the deploy script can optionally merge `.env.local` secrets into `.env`.
 
-```bash
-# App URLs
-NEXT_PUBLIC_URL=https://your-app.vercel.app
-NEXT_PUBLIC_SHARE_URL=https://farcaster.xyz/miniapps/your-app-id/your-app-name
-NEXT_PUBLIC_SHARE_HANDLE=@your-app-handle
+### Required
 
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon_key>
-SUPABASE_SERVICE_ROLE_KEY=<service_role_key>
+| Variable | Purpose |
+| --- | --- |
+| `NEXT_PUBLIC_URL` | Base URL used for assets, OG images, and notification redirects. |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL. |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key (used client-side). |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role key for admin routes, cron, and scripts. |
+| `ADMIN_FIDS` (or `ADMIN_FID_1`, `ADMIN_FID_2`, …) | Comma-separated list of Farcaster IDs that can access admin endpoints. |
+| `ADMIN_PASSWORD` | Password fallback for admin UI and scripts. |
+| `NEYNAR_API_KEY` (or `FARCASTER_API_KEY`) | API key used for Neynar user lookups, casts, and notifications. |
+| `NEYNAR_CLIENT_ID` (or `FARCASTER_CLIENT_ID`) | Client ID required for frame notifications. |
+| `FARCASTER_SIGNER_UUID` (or `NEYNAR_SIGNER_UUID`, `FARCASTER_NEYNAR_SIGNER_UUID`) | Signer UUID used to post casts. |
+| `CRON_SECRET` | Bearer token expected by `/api/cron/farcaster` when scheduled in production. |
 
-# Admin Access
-ADMIN_FIDS=123456  # Comma-separated list
-ADMIN_PASSWORD=<secret>
+### Common Optional Variables
 
-# Neynar (Farcaster API)
-NEYNAR_API_KEY=<key>
-NEYNAR_CLIENT_ID=<client_id>
-NEYNAR_SIGNER_UUID=<signer_uuid>  # For posting casts as @your-app-handle
+| Variable | Purpose |
+| --- | --- |
+| `NEXT_PUBLIC_SHARE_URL`, `NEXT_PUBLIC_SHARE_HANDLE` | Overrides default share metadata; falls back to `NEXT_PUBLIC_URL` and `@gridguessr`. |
+| `NEXT_PUBLIC_MINI_APP_NAME`, `NEXT_PUBLIC_MINI_APP_BUTTON_TEXT` | Filled by the deploy script when publishing manifests. |
+| `NEXT_PUBLIC_DEV_FID`, `NEXT_PUBLIC_ADMIN_FIDS` | Provide default FIDs for local testing (UI preload). |
+| `USE_TUNNEL` | When set to `true`, `npm run dev` spins up a localtunnel and exports its URL as `NEXT_PUBLIC_URL`. |
+| `SOLANA_RPC_ENDPOINT` | Custom RPC endpoint for Solana wallet support (defaults to publicnode). |
+| `FARCASTER_DEFAULT_CHANNEL_ID`, `NEYNAR_DEFAULT_CHANNEL_ID` | Default Farcaster channel for casts. |
+| `FARCASTER_DRY_RUN`, `NEXT_PUBLIC_FARCASTER_DRY_RUN`, `NEYNAR_DRY_RUN` | Enable dry-run mode for casts and notifications. |
+| `SEED_PHRASE`, `SPONSOR_SIGNER` | Optional flags for Neynar signer sponsorship (prompted by `npm run deploy:vercel`). |
 
-# Cron Job Authentication
-CRON_SECRET=<random_secret>
+Keep `.env` and `.env.local` under version control rules that prevent accidental commits of secrets.
 
-# Optional: Redis for caching
-KV_REST_API_TOKEN=
-KV_REST_API_URL=
+---
+
+## Project Structure Overview
+
+```
+src/
+  app/            # App router pages, layouts, API route handlers
+  components/     # Prediction experience (hooks, views, modals), providers
+  lib/            # Supabase helpers, bonus logic, Farcaster integration
+docs/             # Living documentation (API, data model, features, setup)
+scripts/          # Dev utilities, smoke tests, deploy helpers
+supabase/         # Schema dump (import into Supabase)
 ```
 
-## Key Files & Structure
+See the README for a fuller map and feature summary.
 
-```
-/src
-  /app
-    /api                     # API routes
-      /predictions          # User predictions (GET, POST)
-      /results              # User results (GET)
-      /leaderboard          # Global/friends leaderboards (GET)
-      /races/current        # Current race info (GET)
-      /badges               # User badges (GET)
-      /dotd                 # Driver of the Day (GET, POST)
-      /bonus                # Bonus predictions
-      /admin                # Admin-protected routes
-        /results            # Submit race results (POST)
-        /races              # Create/update races (GET, POST)
-        /farcaster          # Publish casts (POST)
-        /notifications      # Send notifications (POST)
-        /bonus/events       # Manage bonus events
-      /cron
-        /farcaster          # Background cast jobs (GET, POST)
-    /admin                  # Admin panel UI
-    /share/[fid]            # Public share pages
-    page.tsx                # Main app entry
-  /components
-    App.tsx                 # Client-side app wrapper
-    /gridguessr
-      GridGuessr.tsx        # Core prediction UI
-      /views                # View components (home, predictions, results, etc.)
-      /components           # UI components (modals, headers)
-      /hooks                # React hooks for data fetching
-  /lib
-    auth.ts                 # Admin authentication
-    supabase.ts             # Supabase client + helper functions
-    bonusPredictions.ts     # Bonus prediction logic
-    constants.ts            # App configuration
-    /farcaster              # Farcaster integration
-      client.ts             # Neynar API wrapper
-      jobs.ts               # Cast job scheduling
-      notifications.ts      # Frame notifications
-      templates.ts          # Cast templates
+---
 
-/supabase
-  schema.sql                # Full PostgreSQL schema dump (217 KB)
-```
+## Installing & Bootstrapping
 
-## Database Setup
+1. **Install dependencies**
+   ```bash
+   npm install
+   ```
 
-1. Create a Supabase project
-2. Import `/supabase/schema.sql` (contains all tables, indexes, RLS policies)
-3. Key tables: `users`, `races`, `predictions`, `race_results`, `drivers`, `teams`, `badges`, `user_badges`, `dotd_votes`, `bonus_prediction_*`, `farcaster_cast_jobs`
+2. **Configure environment variables**
+   - Copy `.env.example` if available (or create `.env` / `.env.local`) and populate the variables listed above.
+   - Ensure service role key is kept server-side only (never bundle client-side).
 
-## Authentication Flow
+3. **Provision Supabase**
+   - Create a new Supabase project.
+   - Import `supabase/schema.sql` via the Supabase dashboard or CLI:
+     ```bash
+     psql "$SUPABASE_DB_URL" < supabase/schema.sql
+     ```
+   - Seed base data (drivers, teams, badges). The repo includes:
+     ```bash
+     npx tsx scripts/seed-badges.mjs
+     ```
+   - Optionally use `scripts/query-table.mjs` for quick sanity checks.
 
-1. User opens app → Farcaster QuickAuth modal appears
-2. User authenticates with Farcaster
-3. FID (Farcaster ID) extracted from auth token
-4. User profile created/updated in Supabase via `ensureUserByFid()`
-5. Admin routes check `isAdminFid()` or `isValidAdminPassword()` (see [lib/auth.ts](../src/lib/auth.ts))
+4. **Run the dev server**
+   ```bash
+   npm run dev
+   ```
+   - `scripts/dev.js` checks for port collisions, optionally opens a localtunnel (`USE_TUNNEL=true`), and injects the tunnel URL into `NEXT_PUBLIC_URL` & `NEXTAUTH_URL`.
+   - Tunnel instructions are printed to the console and include Warpcast preview steps.
 
-## Deployment
+5. **Verify smoke tests (optional)**
+   ```bash
+   npx tsx scripts/smoke-score-wildcard.ts
+   ```
+   This script creates temporary records, runs the admin scorer, asserts wildcard badges, and cleans up.
 
-**Vercel** (recommended):
-```bash
-npm run deploy:vercel  # Interactive deployment script
-# or
-npm run deploy:raw     # Direct Vercel deploy
-```
+---
 
-**Environment Setup**:
-- Add all env vars to Vercel project settings
-- Configure cron job webhook: `/api/cron/farcaster` (runs every 5 minutes)
-- Set `CRON_SECRET` for webhook authentication
+## npm Scripts
 
-## Development
+| Script | Command | Description |
+| --- | --- | --- |
+| `dev` | `node scripts/dev.js` | Runs Next.js dev server with optional tunnel + cleanup hooks. |
+| `build` | `next build` | Production build (with telemetry). |
+| `build:raw` | `next build` | Alias retained for CI compatibility. |
+| `start` | `next start` | Serve the production build. |
+| `lint` | `next lint` | ESLint with Next.js config. |
+| `deploy:vercel` | `tsx scripts/deploy.ts` | Interactive deployment wizard (env validation, manifest prep, optional `.env.local` merge). |
+| `deploy:raw` | `vercel --prod` | Direct Vercel deployment without prompts. |
+| `cleanup` | `node scripts/cleanup.js` | Force-terminates processes on the specified port (default 3000). |
 
-```bash
-npm install
-npm run dev  # Starts Next.js dev server + optional localtunnel
-```
+Supporting scripts:
+- `scripts/dump-schema.sh` – Regenerate `supabase/schema.sql` from a live database.
+- `scripts/query-table.mjs` – Quick table dumps using the service role key.
+- `scripts/seed-badges.mjs` – Seed default badges.
+- `scripts/smoke-score-wildcard.ts` – End-to-end scorer smoke test.
 
-**Local Tunnel** (for Farcaster frame testing):
-- Set `USE_TUNNEL=true` in `.env.local`
-- Uses localtunnel to expose localhost to internet
+---
 
-## Scoring System
+## Deployment Workflow
 
-**Base Categories** (100 points total):
-- Pole Position: 15 pts
-- Race Winner: 15 pts
-- 2nd Place: 10 pts
-- 3rd Place: 10 pts
-- Fastest Lap: 10 pts
-- Fastest Pit Stop: 10 pts
-- First DNF: 10 pts
-- Safety Car (Y/N): 10 pts
-- Winning Margin Bucket: 10 pts
+1. **Preparation**
+   - Ensure Supabase schema is up to date (`scripts/dump-schema.sh` after DB changes).
+   - Confirm docs have been refreshed (see `docs/LOGBOOK.md`).
 
-**Bonus**:
-- Wildcard Question: +10 pts (race-specific)
-- Perfect Slate Badge: Awarded when user scores all 9 base categories correct
+2. **Vercel deployment**
+   ```bash
+   npm run deploy:vercel
+   ```
+   - Prompts to load `.env.local`, ensures key env vars are present, and updates any required manifest constants.
+   - Alternatively push to a Vercel-linked branch or use `npm run deploy:raw`.
 
-**Scoring Trigger**: Admin submits race results via `/api/admin/results` → automatic scoring for all predictions
+3. **Environment configuration**
+   - Set the same env vars in Vercel (Project Settings → Environment Variables).
+   - Supply `CRON_SECRET` and schedule the cron job (see below).
 
-## Farcaster Integration
+4. **Cron job**
+   - Schedule `GET https://<app-domain>/api/cron/farcaster` every 5–10 minutes.
+   - Include `Authorization: Bearer <CRON_SECRET>` in the request headers.
 
-**Cast Jobs** (scheduled in `farcaster_cast_jobs` table):
-- Lock reminders: Posted 2hrs, 1hr, 30min before race predictions lock
-- DOTD summary: Posted after race completion with voting results
-- Leaderboard updates: Weekly top 3 announcements
+5. **Post-deploy checks**
+   - Visit `/admin` and authenticate using either an admin FID or password.
+   - Trigger a test notification/cast in dry-run mode to confirm Farcaster credentials.
 
-**Frame Notifications**:
-- Sent to users via Neynar API
-- Support filtering by FID, follow relationships
-- Examples: "Your results are in!", "New race available"
+---
 
-**Config** (see [lib/farcaster/constants.ts](../src/lib/farcaster/constants.ts)):
-- `FARCASTER_SIGNER_UUID`: Bot account signer for posting casts
-- `NEYNAR_API_KEY`: API access
-- `NEYNAR_CLIENT_ID`: App identifier
+## Supabase Maintenance
 
-## Key Invariants
+- **Schema changes:** Apply migrations manually in Supabase, run `scripts/dump-schema.sh`, and update `docs/DATA_MODEL.md`.
+- **Data seeding:** Keep `scripts/seed-badges.mjs` and any future seed scripts aligned with schema tweaks.
+- **Backups:** Rely on Supabase backups for critical tables (`users`, `predictions`, `bonus_prediction_*`, `farcaster_cast_jobs`).
 
-1. **Race lock time**: Predictions cannot be edited after `race.lock_time`
-2. **XP is additive**: `users.total_points` only increases, never decreases
-3. **Perfect slates**: Badge awarded only when score = 100 (all 9 categories + wildcard)
-4. **One prediction per race**: `predictions` table has unique constraint on `(user_id, race_id)`
-5. **Admin operations**: Use `supabaseAdmin` (service role) for scoring, result submission
-6. **User operations**: Use `supabase` (anon key) with RLS for user-scoped queries
+---
+
+## Integrations & Prerequisites
+
+- **Neynar:** Required for leaderboards (friends view), Farcaster casts, and frame notifications. Without API credentials, `/api/leaderboard?type=friends` returns an empty list.
+- **Farcaster signer:** Provide a signer UUID (bot account or developer signer) via the environment variables listed above.
+- **Solana support:** `SafeFarcasterSolanaProvider` checks for a provider at runtime; configure `SOLANA_RPC_ENDPOINT` if you need a custom RPC or if your signer requires a private endpoint.
+- **Warpcast developer preview:** Use the tunnel URL generated by `npm run dev` to test the mini app inside Warpcast’s developer tools.
+
+---
 
 ## Troubleshooting
 
-**"Predictions locked" error**:
-- Check `race.lock_time` vs. current time
-- Race status must be `upcoming` (not `locked` or `completed`)
+| Issue | Likely Cause | Fix |
+| --- | --- | --- |
+| `400 Predictions are locked` | Race status `locked/completed` or lock time passed | Update race in `/admin` or adjust `lock_time` in Supabase for testing. |
+| Empty friends leaderboard | No Neynar API key or cache expired | Populate `NEYNAR_API_KEY` / `NEYNAR_CLIENT_ID`; clear `friends_follow_cache` row to force refresh. |
+| Farcaster casts failing | Missing API key or signer UUID | Double-check `FARCASTER_SIGNER_UUID` and API key env vars. |
+| Admin auth rejected | FID/password mismatch | Verify FID is listed in `ADMIN_FIDS` (strings or numbers) or that `ADMIN_PASSWORD` matches input. |
+| Cron returns `401 Unauthorized` | Wrong/missing `CRON_SECRET` header | Update cron schedule to send `Authorization: Bearer <secret>`. |
 
-**"Admin not authenticated"**:
-- Verify FID in `ADMIN_FIDS` env var
-- Or use correct `ADMIN_PASSWORD`
+---
 
-**Supabase RLS errors**:
-- Service role client bypasses RLS (use for admin ops)
-- Anon client enforces RLS (use for user ops)
+## TODO / Future Improvements
 
-**Cron jobs not running**:
-- Verify Vercel cron configuration
-- Check `CRON_SECRET` matches in Vercel env
-- See `/api/cron/farcaster` logs
+- Add rate limiting (or Vercel Edge middleware) around public API routes to deter abuse.
+- Implement replay protection for bonus submissions (idempotency tokens).
+- Automate cleanup for stale `friends_follow_cache` rows beyond TTL-driven updates.
+- Expand smoke test coverage to include bonus scoring and Farcaster job dispatch simulations.
 
-## TODO
-
-- [ ] Add Upstash Redis caching for friends leaderboard (currently using DB cache table)
-- [ ] Implement webhook handler for Neynar events (currently stubbed)
-- [ ] Add rate limiting to public API endpoints
+Keep this guide aligned with the repository by updating it whenever scripts, environment variables, or deployment flows change.
