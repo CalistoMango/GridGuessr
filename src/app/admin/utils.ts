@@ -10,6 +10,19 @@ export function formatDateTimeForInput(value: string | null | undefined): string
 }
 
 /**
+ * Convert a `datetime-local` input value to a UTC ISO string for storage.
+ * Takes a value like "2024-10-27T14:00" (which represents local time)
+ * and converts it to a UTC ISO string like "2024-10-27T12:00:00.000Z".
+ */
+export function convertLocalInputToUTC(localDateTime: string): string {
+  if (!localDateTime) return '';
+  // datetime-local is interpreted as local time by the Date constructor
+  const date = new Date(localDateTime);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toISOString();
+}
+
+/**
  * Present ISO timestamps to admins in their local timezone or a fallback dash.
  */
 export function formatLocalDateTime(isoString?: string): string {

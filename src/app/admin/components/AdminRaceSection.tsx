@@ -4,7 +4,7 @@ import React, { useMemo, useState } from 'react';
 import { Loader2, Plus, Trash2 } from 'lucide-react';
 
 import type { AdminMessage, Race } from '../types';
-import { formatDateTimeForInput, formatLocalDateTime } from '../utils';
+import { convertLocalInputToUTC, formatDateTimeForInput, formatLocalDateTime } from '../utils';
 
 type AdminRaceSectionProps = {
   races: Race[];
@@ -79,14 +79,19 @@ export function AdminRaceSection({
     setMessage(null);
 
     try {
+      // Convert datetime-local inputs to UTC before sending to API
+      const payload = {
+        ...(editingRaceId ? { raceId: editingRaceId } : {}),
+        ...formState,
+        raceDate: convertLocalInputToUTC(formState.raceDate),
+        lockTime: convertLocalInputToUTC(formState.lockTime),
+        ...authPayload
+      };
+
       const response = await fetch('/api/admin/races', {
         method: editingRaceId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...(editingRaceId ? { raceId: editingRaceId } : {}),
-          ...formState,
-          ...authPayload
-        })
+        body: JSON.stringify(payload)
       });
 
       const data = await response.json();
