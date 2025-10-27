@@ -406,13 +406,17 @@ Shared header parsing honours `x-admin-token` or `Authorization: Bearer <token>`
   }
   ```
 - **Errors:** `400` (missing fields), `403` (unauthorized), `500` (Supabase/ scheduling errors).
-- **Notes:** Creates the race with `status: "upcoming"` and schedules lock reminder Farcaster jobs.
+- **Notes:**
+  - Creates the race with `status: "upcoming"` and schedules lock reminder Farcaster jobs.
+  - Admin panel converts `datetime-local` input values to UTC ISO strings before submission using `convertLocalInputToUTC()` ([src/app/admin/utils.ts](src/app/admin/utils.ts:12-22)) to ensure consistent timezone handling regardless of admin's local timezone.
 
 ### `PUT /api/admin/races`
 - **Body:** Requires `raceId` plus any fields to update (`name`, `lockTime`, `status`, etc.).
 - **Response (200):** `{ "success": true, "race": { ...updated row... }, "farcaster": { ...resync summary... } }`
 - **Errors:** `400`, `403`, `500`.
-- **Notes:** Reschedules lock reminders and DOTD summary jobs when relevant fields change.
+- **Notes:**
+  - Reschedules lock reminders and DOTD summary jobs when relevant fields change.
+  - Admin panel converts `datetime-local` input values to UTC ISO strings before submission using `convertLocalInputToUTC()` ([src/app/admin/utils.ts](src/app/admin/utils.ts:12-22)).
 
 ### `DELETE /api/admin/races`
 - **Body:** `{ "raceId": "uuid" }` plus admin auth.

@@ -52,6 +52,11 @@ Badge and score updates happen in `/api/admin/results` (see _Results & Scoring_)
 - **Event lifecycle:** `draft → scheduled → open → locked → scored → archived`. The helper recalculates a derived status at read time; divergences are persisted automatically.
 - **Question types:** `choice_driver`, `choice_team`, `choice_custom`, and `free_text`. Options can reference drivers/teams or arbitrary labels.
 - **Submission guardrails:** `/api/bonus/responses` declines writes when status ∈ `{locked, scored, archived}` or when `locks_at` is in the past. Requests are sanitised so only valid option IDs (respecting `max_selections`) are stored.
+- **Client-side submission tracking:** `useBonusPredictions` maintains a `submittedEvents` state that tracks whether a user has submitted responses for each event. This prevents duplicate submissions and enables proper UI state management:
+  - Tracks submission state in local state after successful POST to `/api/bonus/responses`
+  - Detects existing submissions by checking response count when fetching user responses
+  - Provides `hasSubmittedBonus(eventId)` helper to query submission status
+  - UI uses this state to disable editing, update button labels ("View Bonus Picks" vs "Make Bonus Picks"), and display submission confirmation
 - **Scoring:** Points are stored on each response (`points_awarded`) and multiplied by `event.points_multiplier`. `/api/results` consumes these values to present totals and statuses (`pending`, `missing`, `correct`, `incorrect`).
 
 ---

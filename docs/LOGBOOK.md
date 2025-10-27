@@ -15,6 +15,15 @@
 
 ---
 
+## 2025-10-27 - Admin UTC Fixes & Bonus Submission Guards
+
+- fix(admin): convert datetime-local inputs to UTC before storage [files: [src/app/admin/components/AdminRaceSection.tsx](src/app/admin/components/AdminRaceSection.tsx), [src/app/admin/utils.ts](src/app/admin/utils.ts)]
+- feat(bonus): add submission tracking to prevent duplicate bonus submissions [files: [src/components/gridguessr/hooks/useBonusPredictions.ts](src/components/gridguessr/hooks/useBonusPredictions.ts)]
+- feat(bonus): display submission state in UI and disable editing after submission [files: [src/components/gridguessr/GridGuessr.tsx](src/components/gridguessr/GridGuessr.tsx), [src/components/gridguessr/views/BonusPredictionsView.tsx](src/components/gridguessr/views/BonusPredictionsView.tsx), [src/components/gridguessr/views/HomeView.tsx](src/components/gridguessr/views/HomeView.tsx)]
+- chore(gitignore): update path for LLM docs exclusion [files: .gitignore]
+
+---
+
 ## 2025-10-26 - Documentation Sync
 
 - docs: synchronized all documentation with current codebase

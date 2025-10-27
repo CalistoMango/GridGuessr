@@ -24,6 +24,7 @@ interface BonusPredictionsViewProps {
   onOpenQuestion: (questionId: string) => void;
   onSubmit: () => void;
   onBack: () => void;
+  hasSubmitted: boolean;
 }
 
 const emptySelection: Record<string, never> = {};
@@ -102,6 +103,7 @@ const BonusPredictionsView: React.FC<BonusPredictionsViewProps> = ({
   onOpenQuestion,
   onSubmit,
   onBack,
+  hasSubmitted,
 }) => {
   const selectionState = responses?.responses ?? emptySelection;
   const hasQuestions = event.questions.length > 0;
@@ -112,6 +114,7 @@ const BonusPredictionsView: React.FC<BonusPredictionsViewProps> = ({
   }, [responses?.totalPoints, responses?.scoredAt]);
 
   const lockCountdown = useMemo(() => formatLockCountdown(event.locksAt), [event.locksAt]);
+  const isReadOnly = hasSubmitted || isLocked;
 
   return (
     <div className="flex min-h-full flex-col gap-6 px-4 pb-8 pt-6 sm:p-6">
@@ -190,7 +193,7 @@ const BonusPredictionsView: React.FC<BonusPredictionsViewProps> = ({
               return { label, secondary, color };
             });
             const isCompleted = selectedDetails.length > 0;
-            const disableSelection = isLocked || submitting;
+            const disableSelection = isReadOnly || submitting;
             const Icon = questionIcons[index % questionIcons.length];
 
             return (
@@ -245,12 +248,20 @@ const BonusPredictionsView: React.FC<BonusPredictionsViewProps> = ({
                             {detail.secondary && <p className="text-[11px] text-gray-400">{detail.secondary}</p>}
                           </div>
                         </div>
-                        <span className="text-[11px] uppercase tracking-wide text-purple-200">Edit</span>
+                        <span className="text-[11px] uppercase tracking-wide text-purple-200">
+                          {disableSelection ? "View" : "Edit"}
+                        </span>
                       </div>
                     ))
                   ) : (
                     <span className="text-sm text-gray-400">
-                      {isLocked ? "Locked" : isMultiple ? "Tap to choose options" : "Tap to choose"}
+                      {isLocked
+                        ? "Locked"
+                        : hasSubmitted
+                        ? "Submitted"
+                        : isMultiple
+                        ? "Tap to choose options"
+                        : "Tap to choose"}
                     </span>
                   )}
                 </div>
@@ -260,7 +271,7 @@ const BonusPredictionsView: React.FC<BonusPredictionsViewProps> = ({
         </div>
       )}
 
-      {hasQuestions && (
+      {hasQuestions && !hasSubmitted && (
         <button
           onClick={onSubmit}
           disabled={isLocked || submitting || !canSubmit}
@@ -274,6 +285,11 @@ const BonusPredictionsView: React.FC<BonusPredictionsViewProps> = ({
             ? "Answer every question"
             : "Lock Your Bonus Picks"}
         </button>
+      )}
+      {hasQuestions && hasSubmitted && (
+        <div className="mt-2 w-full rounded-xl border border-purple-500/40 bg-purple-900/40 px-5 py-3 text-center text-base font-semibold text-purple-100/90">
+          {isLocked ? "Final Picks" : "Picks Submitted"}
+        </div>
       )}
       {submitError && (
         <p className="mt-3 text-center text-sm text-red-300">{submitError}</p>

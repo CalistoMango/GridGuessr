@@ -32,6 +32,7 @@ interface HomeViewProps {
   bonusLockText: string | null;
   onOpenBonus: () => void;
   bonusLocked: boolean;
+  hasSubmittedBonus: boolean;
 }
 
 const HomeView: React.FC<HomeViewProps> = ({
@@ -53,6 +54,7 @@ const HomeView: React.FC<HomeViewProps> = ({
   bonusLockText,
   onOpenBonus,
   bonusLocked,
+  hasSubmittedBonus,
 }) => {
   return (
     <div className="space-y-6 px-4 pb-8 pt-5 sm:p-6">
@@ -113,7 +115,11 @@ const HomeView: React.FC<HomeViewProps> = ({
             className="mt-4 w-full rounded-lg bg-purple-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-600"
             disabled={bonusLocked}
           >
-            {bonusLocked ? "Bonus locked" : "Make Bonus Picks"}
+            {bonusLocked
+              ? "Bonus locked"
+              : hasSubmittedBonus
+              ? "View Bonus Picks"
+              : "Make Bonus Picks"}
           </button>
         </div>
       )}

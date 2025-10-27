@@ -171,6 +171,7 @@ export default function GridGuessr() {
     updateSelection: updateBonusSelection,
     submitEvent: submitBonusEvent,
     getCompletion: getBonusCompletion,
+    hasSubmittedBonus: getHasSubmittedBonus,
   } = useBonusPredictions({
     fid,
     frameProfile,
@@ -197,8 +198,12 @@ export default function GridGuessr() {
   const isSubmittingBonus = activeBonusEvent
     ? bonusSubmittingEventId === activeBonusEvent.id
     : false;
+  const hasSubmittedBonus = activeBonusEvent ? getHasSubmittedBonus(activeBonusEvent.id) : false;
   const canSubmitBonus = Boolean(
-    bonusCompletion && bonusCompletion.total > 0 && bonusCompletion.percentage === 100
+    !hasSubmittedBonus &&
+      bonusCompletion &&
+      bonusCompletion.total > 0 &&
+      bonusCompletion.percentage === 100
   );
 
   useEffect(() => {
@@ -208,12 +213,18 @@ export default function GridGuessr() {
   }, [canSubmitBonus, bonusSubmitError]);
 
   const handleBonusCommitSelection = (questionId: string, optionIds: string[]) => {
-    if (!activeBonusEvent) return;
+    if (!activeBonusEvent || hasSubmittedBonus) return;
     updateBonusSelection(activeBonusEvent.id, questionId, { selectedOptionIds: optionIds });
   };
 
   const handleSubmitBonus = async () => {
     if (!activeBonusEvent) return;
+    if (hasSubmittedBonus || isSubmittingBonus) {
+      setBonusSubmitError(
+        isSubmittingBonus ? "Submission in progress..." : "Bonus picks already submitted."
+      );
+      return;
+    }
     if (!fid) {
       setBonusSubmitError("Connect your Farcaster account to submit bonus picks.");
       return;
@@ -388,6 +399,7 @@ export default function GridGuessr() {
               setView("bonus");
             }}
             bonusLocked={isBonusLocked}
+            hasSubmittedBonus={hasSubmittedBonus}
           />
         )}
 
@@ -477,11 +489,12 @@ export default function GridGuessr() {
               canSubmit={canSubmitBonus}
               submitError={bonusSubmitError}
               onOpenQuestion={(questionId) => {
-                if (isBonusLocked) return;
+                if (isBonusLocked || hasSubmittedBonus) return;
                 setActiveBonusQuestionId(questionId);
               }}
               onSubmit={handleSubmitBonus}
               onBack={() => setView("home")}
+              hasSubmitted={hasSubmittedBonus}
             />
           ) : (
             <div className="flex-1 px-6 py-10 text-center text-sm text-gray-400">

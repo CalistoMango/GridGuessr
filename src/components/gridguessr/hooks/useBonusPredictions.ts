@@ -20,6 +20,7 @@ interface UseBonusPredictionsResult {
   loading: boolean;
   error: string | null;
   submittingEventId: string | null;
+  hasSubmittedBonus: (eventId: string) => boolean;
   refresh: () => Promise<void>;
   updateSelection: (
     eventId: string,
@@ -153,6 +154,7 @@ export function useBonusPredictions({
 }: UseBonusPredictionsParams): UseBonusPredictionsResult {
   const [events, setEvents] = useState<BonusPredictionEvent[]>([]);
   const [responses, setResponses] = useState<Record<string, BonusPredictionUserState>>({});
+  const [submittedEvents, setSubmittedEvents] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submittingEventId, setSubmittingEventId] = useState<string | null>(null);
@@ -166,18 +168,24 @@ export function useBonusPredictions({
           return null;
         }
         const data = (await response.json()) as ApiResponsesResponse;
+        const responseEntries = data?.responses ?? [];
         const state: BonusPredictionUserState = {
           responses: {},
           totalPoints: data?.totalPoints ?? 0,
           scoredAt: data?.scoredAt ?? null,
         };
 
-        for (const entry of data?.responses ?? []) {
+        for (const entry of responseEntries) {
           state.responses[entry.questionId] = {
             selectedOptionIds: entry.selectedOptionIds ?? [],
             pointsAwarded: entry.pointsAwarded ?? null,
           };
         }
+
+        setSubmittedEvents((previous) => ({
+          ...previous,
+          [eventId]: responseEntries.length > 0,
+        }));
 
         return state;
       } catch (requestError) {
@@ -201,7 +209,6 @@ export function useBonusPredictions({
       const data = (await response.json()) as ApiEventsResponse;
       const mappedEvents = (data?.events ?? []).map(mapApiEvent);
       setEvents(mappedEvents);
-
       if (fid && mappedEvents.length) {
         const nextResponses: Record<string, BonusPredictionUserState> = {};
         await Promise.all(
@@ -307,6 +314,16 @@ export function useBonusPredictions({
           }
         }
 
+        setSubmittedEvents((previous) => {
+          if (previous[eventId] === true) {
+            return previous;
+          }
+          return {
+            ...previous,
+            [eventId]: true,
+          };
+        });
+
         return true;
       } catch (err) {
         console.error("Failed to submit bonus event:", err);
@@ -331,6 +348,11 @@ export function useBonusPredictions({
     [events, responses]
   );
 
+  const hasSubmittedBonus = useCallback(
+    (eventId: string) => submittedEvents[eventId] ?? false,
+    [submittedEvents]
+  );
+
   return {
     events,
     activeEvent,
@@ -338,6 +360,7 @@ export function useBonusPredictions({
     loading,
     error,
     submittingEventId,
+    hasSubmittedBonus,
     refresh: loadEvents,
     updateSelection,
     submitEvent,
